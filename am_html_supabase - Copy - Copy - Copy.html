@@ -1,0 +1,1889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AM Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f0f4f8;}
+input,textarea,select,button{font-family:inherit;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:#f0f4f8;}
+::-webkit-scrollbar-thumb{background:#c0cdd8;border-radius:3px;}
+.task-pill{font-size:10px;border-radius:5px;padding:2px 5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;cursor:pointer;position:relative;}
+.task-pill:hover .task-tooltip{display:block;}
+.task-tooltip{display:none;position:absolute;left:0;top:100%;z-index:100;background:#0a1628;color:#fff;font-size:11px;padding:5px 9px;border-radius:7px;white-space:normal;min-width:150px;max-width:230px;line-height:1.4;box-shadow:0 4px 12px rgba(0,0,0,0.25);}
+.ins-logo{width:40px;height:40px;object-fit:contain;border-radius:8px;background:#f7fbff;border:1px solid #edf2f7;padding:3px;flex-shrink:0;}
+.ins-logo-sm{width:28px;height:28px;object-fit:contain;border-radius:6px;background:#f7fbff;border:1px solid #edf2f7;padding:2px;flex-shrink:0;}
+.acc-logo{width:38px;height:38px;object-fit:contain;border-radius:10px;background:#f7fbff;border:1px solid #edf2f7;padding:3px;flex-shrink:0;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const SUPABASE_URL = "https://pjqgupbiynamrgxvyvfa.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqcWd1cGJpeW5hbXJneHZ5dmZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MTM3MjksImV4cCI6MjA5NTQ4OTcyOX0.8dvBlyp717OwhSmFoTnaCORbQaqO2OWbLnbKXQ4h2KI";
+const {useState,useEffect,useCallback,useRef,memo} = React;
+const LOCAL_KEY = "am_v6";
+const initData = ()=>({accounts:[],nextId:2,customInsurers:[]});
+
+// ── Built-in insurers ─────────────────────────────────────────────────────────
+const BUILTIN_INSURERS = [
+  {id:"axa",name:"AXA Insurance",types:["carrier","tpa"],logo:"https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/AXA_Logo.svg/500px-AXA_Logo.svg.png",url:"https://www.axa-egypt.com/ar/home",builtin:true},
+  {id:"metlife",name:"MetLife",types:["carrier","tpa"],logo:"https://images.seeklogo.com/logo-png/33/1/metlife-logo-png_seeklogo-330397.png",url:"https://www.metlife.eg/",builtin:true},
+  {id:"misr",name:"Misr Insurance",types:["carrier"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTCkRo9ScAy1Cp63aSlHZrB2QhwLGdnwVmXsg&s",url:"https://misrins.com.eg/ar/",builtin:true},
+  {id:"allianz",name:"Allianz",types:["carrier"],logo:"https://upload.wikimedia.org/wikipedia/commons/0/00/Allianz-logo.png",url:"https://www.allianz.com.eg/ar_EG.html",builtin:true},
+  {id:"sci",name:"Suez Canal Insurance",types:["carrier"],logo:null,url:"https://www.sci-egypt.net/mainpage/",builtin:true},
+  {id:"delta",name:"Delta Insurance",types:["carrier"],logo:null,url:null,builtin:true},
+  {id:"chubb",name:"CHUBB",types:["carrier"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ3YW0yZreL9_NqX5J7YKMITo_vh0lP9CB4bw&s",url:"https://life.chubb.com/mea-en/egypt/",builtin:true},
+  {id:"gig",name:"GIG",types:["carrier"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpYK5I9q5-7yW2a2a4uBP5XQ_i97NMKwYlkw&s",url:"http://www.amig.com.eg/en/home.aspx",builtin:true},
+  {id:"royal",name:"Royal Insurance",types:["carrier"],logo:"https://medmarktpa.com/storage/images/ProjectsHomeSlider/ProjectsHomeSlider_19507.png",url:"https://www.royalinsurance.com.eg/",builtin:true},
+  {id:"sarwa",name:"Sarwa Insurance / Sarwa Life",types:["carrier"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR2kulnVB0T_kvKyLXKRxEuF0Ad9m0Ebgq5bw&s",url:"http://sarwa.capital/ar/insurance-products/",builtin:true},
+  {id:"qnb",name:"QNB Insurance",types:["carrier"],logo:null,url:"http://www.qnbalahlilife.com/",builtin:true},
+  {id:"egtak",name:"Egyptian Takaful Insurance",types:["carrier"],logo:null,url:"https://www.egtak.com/",builtin:true},
+  {id:"esih",name:"Egyptian Saudi Insurance House",types:["carrier"],logo:null,url:null,builtin:true},
+  {id:"bupa",name:"Bupa",types:["carrier","tpa"],logo:"https://upload.wikimedia.org/wikipedia/commons/0/01/Bupa-logo_2022.png",url:"https://www.bupaglobal.com/en/for-you/egypt-health-insurance",builtin:true},
+  {id:"iskan",name:"Iskan Insurance",types:["carrier"],logo:null,url:"https://www.iskaninsurance.com/",builtin:true},
+  {id:"lst",name:"Libano Suisse Takaful",types:["carrier"],logo:"https://www.libano-suisse.com/contentfiles/346Image.jpg",url:"http://www.libano-suisse-takaful.com/egypt/english/home",builtin:true},
+  {id:"arope",name:"Arope",types:["carrier"],logo:null,url:"http://www.arope.com/Aboutus/BLOMBankGroup/AROPEEgypt.aspx",builtin:true},
+  {id:"tokio",name:"Tokyo Marine",types:["carrier"],logo:null,url:"https://www.tokiomarine.com.eg/",builtin:true},
+  {id:"orient",name:"Orient Takaful",types:["carrier"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTi80AA7HUFqgNUCtBQPiBv0_-IuraqY4nXPw&s",url:"http://www.orienttakaful.com/",builtin:true},
+  {id:"mohandes",name:"El Mohandes Insurance",types:["carrier"],logo:null,url:"http://www.mohins.com/",builtin:true},
+  {id:"misremir",name:"Misr Emirates",types:["carrier"],logo:null,url:"https://metlico.com/",builtin:true},
+  {id:"medgulf",name:"MEDGULF",types:["carrier"],logo:null,url:"https://www.medgulf.com.sa/",builtin:true},
+  {id:"misrtak",name:"Misr Insurance Takaful",types:["carrier"],logo:null,url:"https://www.misr-takaful.com/",builtin:true},
+  {id:"aig",name:"AIG",types:["carrier"],logo:null,url:"https://www.aig.eg/",builtin:true},
+  {id:"wethaq",name:"Wethaq Takaful",types:["carrier"],logo:null,url:"https://www.wethaq-egypt.com/",builtin:true},
+  {id:"globemed",name:"GlobeMed",types:["tpa"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRRk-XP8PvRXku-lEuGzJLrSQfJWqfmwQLG4Q&s",url:null,builtin:true},
+  {id:"medmark",name:"Medmark TPA",types:["tpa"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTQQUmGijKTSxOnKnsAHqq4NaPcrYTTx9T5bg&s",url:null,builtin:true},
+  {id:"nextcare",name:"NextCare Egypt",types:["tpa"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTtKZ7pKUdYPmn82LVUGLCG-UCs6qYipWXX-w&s",url:null,builtin:true},
+  {id:"medright",name:"Med Right",types:["tpa"],logo:"https://www.med-right.net/frontend/assets/img/Med-Right-Logo.png",url:null,builtin:true},
+  {id:"mednet",name:"MedNet Egypt",types:["tpa"],logo:"https://mednet.com/media/2025-07-28/279/c0aacedbd8bb064a2300bcd4ce145042.jpg",url:null,builtin:true},
+  {id:"sehaone",name:"SehaOne",types:["hmo"],logo:"https://media.licdn.com/dms/image/v2/D4D0BAQE4pdp9pCIVrg/company-logo_200_200/company-logo_200_200/0/1725802170206/sehaoneegypt_logo?e=2147483647&v=beta&t=bTwtESoqZqmESRjGYinnCBEiNbn3MNPyUdMROKhezdc",url:null,builtin:true},
+];
+
+const SC={healthy:{bg:"#e8faf5",text:"#0fa890",label:"Healthy"},attention:{bg:"#fff8e6",text:"#d4880a",label:"Needs Attention"},risk:{bg:"#fff0ef",text:"#e0392e",label:"At Risk"}};
+const AP=["#1565c0","#4527a0","#00695c","#6a1b9a","#ad1457","#0277bd","#00838f","#558b2f"];
+const ac=n=>AP[n.charCodeAt(0)%AP.length];
+const ii=n=>n.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+const td=()=>new Date().toISOString().slice(0,10);
+const dkf=off=>{const d=new Date();d.setDate(d.getDate()+off);return d.toISOString().slice(0,10);};
+const wkf=off=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+off*7);return d.toISOString().slice(0,10);};
+const fday=k=>new Date(k).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"short"});
+const HRS=Array.from({length:10},(_,i)=>i+9);
+const fhr=h=>`${h%12===0?12:h%12}${h<12?"am":"pm"}`;
+function sunOf(w=0){const d=new Date();d.setDate(d.getDate()-d.getDay()+w*7);d.setHours(0,0,0,0);return d;}
+function wdays(w=0){const s=sunOf(w);return Array.from({length:7},(_,i)=>{const d=new Date(s);d.setDate(d.getDate()+i);return d.toISOString().slice(0,10);});}
+function eAcc(){return{name:"",industry:"",employees:"",logoUrl:"",subsidiaries:[],poc:{name:"",title:"",phone:"",email:"",emailThreadUrl:""},renewalDate:"",status:"healthy",carrierId:"",tpaId:"",tpaIsCarrier:false,hmoId:"",renewalUpdates:[]};}
+function flatA(a){return{name:a.name||"",industry:a.industry||"",employees:String(a.employees||""),logoUrl:a.logoUrl||"",renewalDate:a.renewalDate||"",status:a.status||"healthy",pn:a.poc?.name||"",pt:a.poc?.title||"",pp:a.poc?.phone||"",pe:a.poc?.email||"",pu:a.poc?.emailThreadUrl||"",carrierId:a.carrierId||"",tpaId:a.tpaId||"",tpaIsCarrier:a.tpaIsCarrier||false,hmoId:a.hmoId||""};}
+function unflat(f){return{name:f.name,industry:f.industry,employees:parseInt(f.employees)||0,logoUrl:f.logoUrl||"",renewalDate:f.renewalDate,status:f.status,poc:{name:f.pn,title:f.pt,phone:f.pp,email:f.pe,emailThreadUrl:f.pu},carrierId:f.carrierId||"",tpaId:f.tpaId||"",tpaIsCarrier:f.tpaIsCarrier||false,hmoId:f.hmoId||""};}
+
+function gcalLink(t,date,aName){
+  const base="https://calendar.google.com/calendar/render?action=TEMPLATE";
+  const title=encodeURIComponent(`[AM] ${t.text} — ${aName}`);
+  const desc=encodeURIComponent(`Account: ${aName}`);
+  if(t.time){const[hh,mm]=t.time.split(":");const s=new Date(`${date}T${hh}:${mm}:00`);const e=new Date(s.getTime()+3600000);const fmt=d=>d.toISOString().replace(/[-:]/g,"").split(".")[0]+"Z";return `${base}&text=${title}&details=${desc}&dates=${fmt(s)}/${fmt(e)}`;}
+  const d=date.replace(/-/g,"");return `${base}&text=${title}&details=${desc}&dates=${d}/${d}`;
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+const c={
+  root:{fontFamily:"'Plus Jakarta Sans',system-ui,sans-serif",minHeight:"100vh",background:"#f0f4f8",color:"#0f1c2e",paddingBottom:"3rem"},
+  hdr:{background:"#0a1628",borderBottom:"1px solid #162240",padding:"0 1.5rem",display:"flex",alignItems:"center",justifyContent:"space-between",height:58,position:"sticky",top:0,zIndex:50},
+  logo:{fontFamily:"'Clash Display',sans-serif",fontWeight:700,fontSize:17,color:"#5dd8c8"},
+  nb:a=>({background:a?"#162240":"transparent",border:"none",color:a?"#5dd8c8":"#4a6080",padding:"6px 14px",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}),
+  main:{maxWidth:1200,margin:"0 auto",padding:"1.25rem 1rem"},
+  sRow:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16},
+  sc:col=>({background:"#fff",border:`1.5px solid ${col}44`,borderRadius:14,padding:"14px 18px"}),
+  sn:col=>({fontSize:26,fontWeight:700,color:col,fontFamily:"'Clash Display',sans-serif"}),
+  sl:{fontSize:11,color:"#7a9ab5",marginTop:2,textTransform:"uppercase",letterSpacing:0.8,fontWeight:600},
+  grid:{display:"grid",gridTemplateColumns:"280px 1fr",gap:14},
+  sidebar:{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,overflow:"hidden",alignSelf:"start"},
+  sHead:{padding:"12px 14px",borderBottom:"1px solid #edf2f7",display:"flex",alignItems:"center",justifyContent:"space-between"},
+  sTitle:{fontSize:11,fontWeight:700,color:"#7a9ab5",textTransform:"uppercase",letterSpacing:1.2},
+  aBtn:{background:"#e8faf8",border:"1px solid #5dd8c844",color:"#0fa890",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontWeight:700},
+  ai:a=>({padding:"10px 14px",cursor:"pointer",borderLeft:`3px solid ${a?"#5dd8c8":"transparent"}`,background:a?"#f0faf9":"transparent",display:"flex",alignItems:"center",gap:9,borderBottom:"1px solid #f0f4f8"}),
+  ava:n=>({width:33,height:33,borderRadius:"50%",background:ac(n),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}),
+  panel:{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,overflow:"hidden"},
+  pH:{padding:"14px 18px",borderBottom:"1px solid #edf2f7",display:"flex",alignItems:"center",justifyContent:"space-between",background:"#fafcfe"},
+  tabs:{display:"flex",borderBottom:"1px solid #edf2f7",background:"#fafcfe",overflowX:"auto"},
+  tab:a=>({padding:"10px 16px",cursor:"pointer",fontSize:13,fontWeight:600,color:a?"#0fa890":"#7a9ab5",background:"transparent",border:"none",borderBottom:`2px solid ${a?"#5dd8c8":"transparent"}`,whiteSpace:"nowrap"}),
+  ni:{width:"100%",background:"#f7fbff",border:"1.5px solid #dde8f0",borderRadius:10,padding:11,color:"#0f1c2e",fontSize:13,resize:"vertical",minHeight:72,fontFamily:"'Plus Jakarta Sans',sans-serif",boxSizing:"border-box"},
+  ti:{flex:1,background:"#f7fbff",border:"1.5px solid #dde8f0",borderRadius:10,padding:"8px 12px",color:"#0f1c2e",fontSize:13,fontFamily:"'Plus Jakarta Sans',sans-serif"},
+  sv:{background:"#0fa890",border:"none",color:"#fff",borderRadius:10,padding:"8px 18px",fontSize:13,cursor:"pointer",fontWeight:700},
+  del:{background:"none",border:"none",color:"#c0cdd8",cursor:"pointer",fontSize:14,padding:"2px 6px"},
+  badge:st=>({display:"inline-block",background:SC[st]?.bg,color:SC[st]?.text,fontSize:11,padding:"2px 10px",borderRadius:20,fontWeight:700}),
+  na:{display:"flex",alignItems:"center",gap:6},
+  narr:{background:"#f0f4f8",border:"1px solid #dde8f0",color:"#0fa890",width:27,height:27,borderRadius:8,cursor:"pointer",fontSize:17,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700},
+  nl:{fontSize:12,color:"#7a9ab5",minWidth:130,textAlign:"center",fontWeight:600},
+  ic:{background:"#f7fbff",border:"1px solid #edf2f7",borderRadius:10,padding:"10px 13px"},
+  iL:{fontSize:10,color:"#7a9ab5",textTransform:"uppercase",letterSpacing:0.8,fontWeight:700},
+  iV:{fontSize:14,fontWeight:700,marginTop:3,color:"#0f1c2e",fontFamily:"'Clash Display',sans-serif"},
+  modal:{position:"fixed",inset:0,background:"rgba(10,22,40,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200},
+  mBox:{background:"#fff",border:"1px solid #dde8f0",borderRadius:16,padding:24,width:480,maxHeight:"90vh",overflowY:"auto"},
+  fl:{fontSize:11,color:"#7a9ab5",marginBottom:4,display:"block",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5},
+  fi:{width:"100%",background:"#f7fbff",border:"1.5px solid #dde8f0",borderRadius:10,padding:"8px 12px",color:"#0f1c2e",fontSize:13,fontFamily:"'Plus Jakarta Sans',sans-serif",marginBottom:10,boxSizing:"border-box"},
+  cBtn:{background:"transparent",border:"1.5px solid #dde8f0",color:"#7a9ab5",borderRadius:10,padding:"7px 16px",fontSize:13,cursor:"pointer",fontWeight:600},
+  srch:{background:"#f7fbff",border:"1.5px solid #edf2f7",borderRadius:10,padding:"7px 12px",color:"#0f1c2e",fontSize:13,width:"100%",boxSizing:"border-box",marginBottom:8,fontFamily:"'Plus Jakarta Sans',sans-serif"},
+  syncBadge:ok=>({display:"flex",alignItems:"center",gap:5,fontSize:11,fontWeight:600,color:ok===true?"#0fa890":ok===false?"#e0392e":"#d4880a",background:ok===true?"#e8faf8":ok===false?"#fff0ef":"#fff8e6",padding:"3px 10px",borderRadius:20,border:`1px solid ${ok===true?"#5dd8c844":ok===false?"#e0392e44":"#f6d86044"}`}),
+  gcalBtn:{background:"#e8f0fe",border:"1px solid #4285f444",color:"#4285f4",borderRadius:6,padding:"2px 7px",fontSize:10,fontWeight:700,textDecoration:"none",whiteSpace:"nowrap"},
+  gtaskBtn:{background:"#e6f4ea",border:"1px solid #34a85344",color:"#1e8e3e",borderRadius:6,padding:"2px 7px",fontSize:10,fontWeight:700,textDecoration:"none",whiteSpace:"nowrap",cursor:"pointer"},
+  typeTag:t=>({display:"inline-block",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20,textTransform:"uppercase",letterSpacing:0.5,background:t==="carrier"?"#e8f0fe":t==="tpa"?"#e8faf5":"#fce8ff",color:t==="carrier"?"#4285f4":t==="tpa"?"#0fa890":"#9333ea"}),
+  // task action buttons
+  taskActBtn:(col,bg)=>({background:bg,border:`1px solid ${col}33`,color:col,borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}),
+};
+
+// ── Stable components ─────────────────────────────────────────────────────────
+const WeekNav=memo(({off,setOff,label})=>(
+  <div style={c.na}>
+    <button style={c.narr} onClick={()=>setOff(o=>o-1)}>‹</button>
+    <span style={c.nl}>{label}</span>
+    <button style={c.narr} onClick={()=>setOff(o=>o+1)}>›</button>
+  </div>
+));
+
+const NoteInput=memo(({value,onChange,onSave})=>(
+  <div style={{marginBottom:10}}>
+    <textarea style={c.ni} placeholder="Add a note… (Ctrl+Enter to save)" value={value} onChange={e=>onChange(e.target.value)} onKeyDown={e=>e.key==="Enter"&&e.ctrlKey&&onSave()}/>
+    <button style={c.sv} onClick={onSave}>Save note</button>
+  </div>
+));
+
+const TaskInput=memo(({value,timeValue,onChange,onTimeChange,onAdd})=>(
+  <div style={{display:"flex",gap:8,marginBottom:8}}>
+    <input style={c.ti} placeholder="Add a task… (Enter)" value={value} onChange={e=>onChange(e.target.value)} onKeyDown={e=>e.key==="Enter"&&onAdd()}/>
+    <select style={{...c.ti,flex:"0 0 110px",cursor:"pointer"}} value={timeValue} onChange={e=>onTimeChange(e.target.value)}>
+      <option value="">No time</option>
+      {HRS.map(h=>[0,30].map(m=>{const hh=String(h).padStart(2,"0"),mm=String(m).padStart(2,"0");return <option key={`${hh}:${mm}`} value={`${hh}:${mm}`}>{fhr(h)}{m===30?":30":""}</option>;})).flat()}
+    </select>
+    <button style={c.sv} onClick={onAdd}>Add</button>
+  </div>
+));
+
+// InsurerLogo
+function InsurerLogo({ins,size="sm"}){
+  const[err,setErr]=useState(false);
+  if(!ins)return null;
+  const dim=size==="sm"?28:40;
+  const r=size==="sm"?6:8;
+  if(ins.logo&&!err)return <img src={ins.logo} alt={ins.name} className={size==="sm"?"ins-logo-sm":"ins-logo"} onError={()=>setErr(true)}/>;
+  return <div style={{width:dim,height:dim,borderRadius:r,background:ac(ins.name),display:"flex",alignItems:"center",justifyContent:"center",fontSize:size==="sm"?9:11,fontWeight:700,color:"#fff",flexShrink:0}}>{ii(ins.name)}</div>;
+}
+
+// AccModal — full with logo + insurers
+const AccModal=memo(({title,d,ch,allInsurers,onSave,onClose})=>{
+  const myCarriers=allInsurers.filter(i=>i.types.includes("carrier"));
+  const myTpas=allInsurers.filter(i=>i.types.includes("tpa"));
+  const myHmos=allInsurers.filter(i=>i.types.includes("hmo"));
+  const tpaCarriers=myCarriers.filter(i=>i.types.includes("tpa"));
+  return(
+    <div style={c.modal} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={c.mBox}>
+        <div style={{fontSize:15,fontWeight:700,marginBottom:14,fontFamily:"'Clash Display',sans-serif"}}>{title}</div>
+
+        {/* Logo preview */}
+        {d.logoUrl&&(
+          <div style={{display:"flex",justifyContent:"center",marginBottom:12}}>
+            <img src={d.logoUrl} alt="logo" style={{height:54,maxWidth:180,objectFit:"contain",borderRadius:10,border:"1px solid #edf2f7",padding:6,background:"#f7fbff"}} onError={e=>e.target.style.display="none"}/>
+          </div>
+        )}
+        <div><label style={c.fl}>Company logo URL (optional)</label><input style={c.fi} type="url" value={d.logoUrl||""} onChange={e=>ch("logoUrl",e.target.value)} placeholder="https://example.com/logo.png"/></div>
+
+        {[["Company name","name","text"],["Industry","industry","text"],["Employees","employees","number"],["Renewal date","renewalDate","date"]].map(([lb,k,t])=>(
+          <div key={k}><label style={c.fl}>{lb}</label><input style={c.fi} type={t} value={d[k]||""} onChange={e=>ch(k,e.target.value)}/></div>
+        ))}
+        <div><label style={c.fl}>Status</label>
+          <select style={c.fi} value={d.status||"healthy"} onChange={e=>ch("status",e.target.value)}>
+            <option value="healthy">Healthy</option><option value="attention">Needs Attention</option><option value="risk">At Risk</option>
+          </select>
+        </div>
+
+        <div style={{fontSize:11,fontWeight:700,color:"#4285f4",margin:"12px 0 8px",textTransform:"uppercase",letterSpacing:0.8,borderTop:"1px solid #edf2f7",paddingTop:12}}>Insurance Setup</div>
+        <div><label style={c.fl}>Risk Carrier</label>
+          <select style={c.fi} value={d.carrierId||""} onChange={e=>ch("carrierId",e.target.value)}>
+            <option value="">— Select carrier —</option>
+            {myCarriers.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+          </select>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+          <input type="checkbox" id="tic" checked={d.tpaIsCarrier||false} onChange={e=>{ch("tpaIsCarrier",e.target.checked);if(e.target.checked)ch("tpaId","");}} style={{accentColor:"#0fa890",width:14,height:14,cursor:"pointer"}}/>
+          <label htmlFor="tic" style={{fontSize:12,color:"#7a9ab5",cursor:"pointer"}}>Risk Carrier is also the TPA</label>
+        </div>
+        {!d.tpaIsCarrier&&(
+          <div><label style={c.fl}>TPA</label>
+            <select style={c.fi} value={d.tpaId||""} onChange={e=>ch("tpaId",e.target.value)}>
+              <option value="">— Select TPA —</option>
+              {myTpas.filter(i=>!i.types.includes("carrier")).map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+              {tpaCarriers.length>0&&<optgroup label="Carriers acting as TPA">{tpaCarriers.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</optgroup>}
+            </select>
+          </div>
+        )}
+        <div><label style={c.fl}>HMO</label>
+          <select style={c.fi} value={d.hmoId||""} onChange={e=>ch("hmoId",e.target.value)}>
+            <option value="">— None —</option>
+            {myHmos.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+          </select>
+        </div>
+
+        <div style={{fontSize:11,fontWeight:700,color:"#7a9ab5",margin:"12px 0 8px",textTransform:"uppercase",letterSpacing:0.8,borderTop:"1px solid #edf2f7",paddingTop:12}}>Point of contact</div>
+        {[["Name","pn","text"],["Title","pt","text"],["Phone","pp","text"],["Email","pe","email"],["Email thread link","pu","url"]].map(([lb,k,t])=>(
+          <div key={k}><label style={c.fl}>{lb}</label><input style={c.fi} type={t} value={d[k]||""} onChange={e=>ch(k,e.target.value)} placeholder={k==="pu"?"https://mail.google.com/...":""}/></div>
+        ))}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+          <button style={c.cBtn} onClick={onClose}>Cancel</button>
+          <button style={c.sv} onClick={onSave}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const CalAddModal=memo(({day,accounts,ct,ch,onSave,onClose})=>(
+  <div style={c.modal} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{...c.mBox,width:420}}>
+      <div style={{fontSize:15,fontWeight:700,marginBottom:4,fontFamily:"'Clash Display',sans-serif"}}>Add task</div>
+      <div style={{fontSize:12,color:"#7a9ab5",marginBottom:16}}>{fday(day)}</div>
+      <label style={c.fl}>Task / activity</label>
+      <input style={c.fi} placeholder="e.g. Call HR, Follow up on claim…" value={ct.text} onChange={e=>ch("text",e.target.value)} onKeyDown={e=>e.key==="Enter"&&onSave()} autoFocus/>
+      <label style={c.fl}>Time (optional)</label>
+      <select style={c.fi} value={ct.time} onChange={e=>ch("time",e.target.value)}>
+        <option value="">No specific time</option>
+        {HRS.map(h=>[0,30].map(m=>{const hh=String(h).padStart(2,"0"),mm=String(m).padStart(2,"0");return <option key={`${hh}:${mm}`} value={`${hh}:${mm}`}>{fhr(h)}{m===30?":30":""}</option>;})).flat()}
+      </select>
+      <label style={c.fl}>Link to account</label>
+      <select style={c.fi} value={ct.accId} onChange={e=>ch("accId",e.target.value)}>
+        <option value="">— Select account —</option>
+        {accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+      </select>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
+        <button style={c.cBtn} onClick={onClose}>Cancel</button>
+        <button style={{...c.sv,opacity:(!ct.text.trim()||!ct.accId)?0.5:1}} onClick={onSave} disabled={!ct.text.trim()||!ct.accId}>Add task</button>
+      </div>
+    </div>
+  </div>
+));
+
+// InsurerFormModal — add/edit insurer
+const InsurerFormModal=memo(({title,d,ch,onSave,onClose})=>(
+  <div style={c.modal} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{...c.mBox,width:420}}>
+      <div style={{fontSize:15,fontWeight:700,marginBottom:14,fontFamily:"'Clash Display',sans-serif"}}>{title}</div>
+      {d.logo&&<div style={{display:"flex",justifyContent:"center",marginBottom:12}}><img src={d.logo} alt="logo" style={{height:48,maxWidth:160,objectFit:"contain",borderRadius:8,border:"1px solid #edf2f7",padding:5,background:"#f7fbff"}} onError={e=>e.target.style.display="none"}/></div>}
+      {[["Name","name","text"],["Logo URL","logo","url"],["Website URL","url","url"]].map(([lb,k,t])=>(
+        <div key={k}><label style={c.fl}>{lb}</label><input style={c.fi} type={t} value={d[k]||""} onChange={e=>ch(k,e.target.value)} placeholder={k==="logo"?"https://example.com/logo.png":k==="url"?"https://example.com":"" }/></div>
+      ))}
+      <div><label style={c.fl}>Type(s)</label>
+        <div style={{display:"flex",gap:10,marginBottom:10}}>
+          {[["carrier","Risk Carrier"],["tpa","TPA"],["hmo","HMO"]].map(([v,lb])=>(
+            <label key={v} style={{display:"flex",alignItems:"center",gap:5,fontSize:13,cursor:"pointer"}}>
+              <input type="checkbox" checked={(d.types||[]).includes(v)} onChange={e=>{const t=d.types||[];ch("types",e.target.checked?[...t,v]:t.filter(x=>x!==v));}} style={{accentColor:"#0fa890"}}/>{lb}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+        <button style={c.cBtn} onClick={onClose}>Cancel</button>
+        <button style={c.sv} onClick={onSave}>Save</button>
+      </div>
+    </div>
+  </div>
+));
+
+// TaskActionModal — update note or add related task
+const TaskActionModal=memo(({mode,task,accounts,accId,onClose,onSubmit})=>{
+  const[val,setVal]=useState("");
+  const[selAcc,setSelAcc]=useState(String(accId||""));
+  const[time,setTime]=useState("");
+  if(mode==="update") return(
+    <div style={c.modal} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{...c.mBox,width:420}}>
+        <div style={{fontSize:15,fontWeight:700,marginBottom:4,fontFamily:"'Clash Display',sans-serif"}}>Update task</div>
+        <div style={{fontSize:12,color:"#7a9ab5",marginBottom:14}}>{task.text}</div>
+        <label style={c.fl}>Update note</label>
+        <textarea style={c.ni} placeholder="What's the latest on this task?" value={val} onChange={e=>setVal(e.target.value)} autoFocus/>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+          <button style={c.cBtn} onClick={onClose}>Cancel</button>
+          <button style={c.sv} onClick={()=>val.trim()&&onSubmit(val)}>Save update</button>
+        </div>
+      </div>
+    </div>
+  );
+  return(
+    <div style={c.modal} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{...c.mBox,width:420}}>
+        <div style={{fontSize:15,fontWeight:700,marginBottom:4,fontFamily:"'Clash Display',sans-serif"}}>Add related task</div>
+        <div style={{fontSize:12,color:"#7a9ab5",marginBottom:14}}>Related to: {task.text}</div>
+        <label style={c.fl}>New task</label>
+        <input style={c.fi} placeholder="Describe the new task…" value={val} onChange={e=>setVal(e.target.value)} autoFocus/>
+        <label style={c.fl}>Time (optional)</label>
+        <select style={c.fi} value={time} onChange={e=>setTime(e.target.value)}>
+          <option value="">No time</option>
+          {HRS.map(h=>[0,30].map(m=>{const hh=String(h).padStart(2,"0"),mm=String(m).padStart(2,"0");return <option key={`${hh}:${mm}`} value={`${hh}:${mm}`}>{fhr(h)}{m===30?":30":""}</option>;})).flat()}
+        </select>
+        <label style={c.fl}>Account</label>
+        <select style={c.fi} value={selAcc} onChange={e=>setSelAcc(e.target.value)}>
+          {accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+          <button style={c.cBtn} onClick={onClose}>Cancel</button>
+          <button style={c.sv} onClick={()=>val.trim()&&onSubmit(val,parseInt(selAcc),time)}>Add task</button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// RenewalSecuredModal — update insurers after renewal
+const RenewalSecuredModal=memo(({acc,allInsurers,onClose,onSecure})=>{
+  const[carrierId,setCarrierId]=useState(acc.carrierId||"");
+  const[tpaId,setTpaId]=useState(acc.tpaId||"");
+  const[tpaIsCarrier,setTpaIsCarrier]=useState(acc.tpaIsCarrier||false);
+  const[hmoId,setHmoId]=useState(acc.hmoId||"");
+  const[renewalDate,setRenewalDate]=useState(acc.renewalDate||"");
+  const myCarriers=allInsurers.filter(i=>i.types.includes("carrier"));
+  const myTpas=allInsurers.filter(i=>i.types.includes("tpa")&&!i.types.includes("carrier"));
+  const tpaCarriers=allInsurers.filter(i=>i.types.includes("carrier")&&i.types.includes("tpa"));
+  const myHmos=allInsurers.filter(i=>i.types.includes("hmo"));
+  return(
+    <div style={c.modal} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{...c.mBox,width:460}}>
+        <div style={{fontSize:15,fontWeight:700,marginBottom:4,fontFamily:"'Clash Display',sans-serif"}}>🎉 Renewal Secured</div>
+        <div style={{fontSize:12,color:"#7a9ab5",marginBottom:16}}>Confirm final details for <strong>{acc.name}</strong></div>
+        <label style={c.fl}>New renewal date</label>
+        <input style={c.fi} type="date" value={renewalDate} onChange={e=>setRenewalDate(e.target.value)}/>
+        <label style={c.fl}>Risk Carrier</label>
+        <select style={c.fi} value={carrierId} onChange={e=>setCarrierId(e.target.value)}>
+          <option value="">— Select carrier —</option>
+          {myCarriers.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+        </select>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+          <input type="checkbox" checked={tpaIsCarrier} onChange={e=>{setTpaIsCarrier(e.target.checked);if(e.target.checked)setTpaId("");}} style={{accentColor:"#0fa890",width:14,height:14,cursor:"pointer"}}/>
+          <span style={{fontSize:12,color:"#7a9ab5"}}>Risk Carrier is also the TPA</span>
+        </div>
+        {!tpaIsCarrier&&(
+          <>
+            <label style={c.fl}>TPA</label>
+            <select style={c.fi} value={tpaId} onChange={e=>setTpaId(e.target.value)}>
+              <option value="">— Select TPA —</option>
+              {myTpas.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+              {tpaCarriers.length>0&&<optgroup label="Carriers acting as TPA">{tpaCarriers.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</optgroup>}
+            </select>
+          </>
+        )}
+        <label style={c.fl}>HMO</label>
+        <select style={c.fi} value={hmoId} onChange={e=>setHmoId(e.target.value)}>
+          <option value="">— None —</option>
+          {myHmos.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+        </select>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+          <button style={c.cBtn} onClick={onClose}>Cancel</button>
+          <button style={{...c.sv,background:"#0fa890"}} onClick={()=>onSecure({carrierId,tpaId,tpaIsCarrier,hmoId,renewalDate})}>Confirm & Update Account</button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ── Main Dashboard ────────────────────────────────────────────────────────────
+function Dashboard(){
+  const[data,setData]=useState(()=>{try{const s=localStorage.getItem(LOCAL_KEY);return s?JSON.parse(s):initData();}catch{return initData();}});
+  const[syncOk,setSyncOk]=useState(null);
+  const[syncMsg,setSyncMsg]=useState("Connecting…");
+  const[view,setView]=useState("overview");
+  const[selAcc,setSelAcc]=useState(null);
+  const[calOff,setCalOff]=useState(0);
+  const[nOff,setNOff]=useState(0);
+  const[dOff,setDOff]=useState(0);
+  const[showAdd,setShowAdd]=useState(false);
+  const[showEdit,setShowEdit]=useState(false);
+  const[form,setForm]=useState(flatA(eAcc()));
+  const[note,setNote]=useState("");
+  const[task,setTask]=useState("");
+  const[taskTime,setTaskTime]=useState("");
+  const[tab,setTab]=useState("notes");
+  const[calDay,setCalDay]=useState(td());
+  const[search,setSearch]=useState("");
+  const[insSearch,setInsSearch]=useState("");
+  const[showRen,setShowRen]=useState(false);
+  const[showCalAdd,setShowCalAdd]=useState(false);
+  const[calTask,setCalTask]=useState({text:"",time:"",accId:""});
+  const[showSub,setShowSub]=useState(false);
+  const[subForm,setSubForm]=useState({name:"",employees:"",poc:"",pocEmail:"",pocPhone:""});
+  const[insFilter,setInsFilter]=useState("all");
+  const[copiedId,setCopiedId]=useState(null);
+  // task action
+  const[taskAction,setTaskAction]=useState(null); // {mode,task,accId,dayK}
+  // insurer modal
+  const[insModal,setInsModal]=useState(null); // {mode:'add'|'edit', insurer}
+  const[insForm,setInsForm]=useState({name:"",logo:"",url:"",types:[]});
+  // renewal update
+  const[renewalInput,setRenewalInput]=useState({}); // {accId: text}
+  const[secureModal,setSecureModal]=useState(null); // acc object
+
+  const syncTimer=useRef(null);
+  const mounted=useRef(true);
+  useEffect(()=>()=>{mounted.current=false;},[]);
+
+  // Combine builtin + custom insurers
+  const allInsurers=[...BUILTIN_INSURERS,...(data.customInsurers||[])];
+  const insurerById={};
+  allInsurers.forEach(i=>insurerById[i.id]=i);
+
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const res=await fetch(`${SUPABASE_URL}/rest/v1/am_data?id=eq.main&select=payload`,{headers:{"apikey":SUPABASE_KEY,"Authorization":`Bearer ${SUPABASE_KEY}`,"Content-Type":"application/json"}});
+        const rows=await res.json();
+        if(rows&&rows[0]?.payload&&mounted.current){setData(rows[0].payload);localStorage.setItem(LOCAL_KEY,JSON.stringify(rows[0].payload));setSyncOk(true);setSyncMsg("Synced ✓");}
+        else{await pushREST(data);setSyncOk(true);setSyncMsg("Synced ✓");}
+      }catch{setSyncOk(false);setSyncMsg("Offline — local only");}
+    })();
+  },[]);
+
+  async function pushREST(nd){await fetch(`${SUPABASE_URL}/rest/v1/am_data`,{method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":`Bearer ${SUPABASE_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({id:"main",payload:nd,updated_at:new Date().toISOString()})});}
+
+  const push=useCallback(nd=>{setSyncOk(null);setSyncMsg("Saving…");clearTimeout(syncTimer.current);syncTimer.current=setTimeout(async()=>{try{await pushREST(nd);if(mounted.current){setSyncOk(true);setSyncMsg("Synced ✓");}}catch{if(mounted.current){setSyncOk(false);setSyncMsg("Sync failed");}}},600);},[]);
+  const save=useCallback(fn=>{setData(d=>{const n={...d,...fn(d)};localStorage.setItem(LOCAL_KEY,JSON.stringify(n));push(n);return n;});},[push]);
+  const log=useCallback((id,msg)=>{save(d=>({accounts:d.accounts.map(a=>a.id===id?{...a,activity:[{id:Date.now(),msg,ts:new Date().toISOString()},...(a.activity||[])].slice(0,50)}:a)}));},[save]);
+
+  const chForm=useCallback((k,v)=>setForm(f=>({...f,[k]:v})),[]);
+  const chCal=useCallback((k,v)=>setCalTask(f=>({...f,[k]:v})),[]);
+  const chNote=useCallback(v=>setNote(v),[]);
+  const chTask=useCallback(v=>setTask(v),[]);
+  const chTaskTime=useCallback(v=>setTaskTime(v),[]);
+  const chIns=useCallback((k,v)=>setInsForm(f=>({...f,[k]:v})),[]);
+
+  const acc=selAcc?data.accounts.find(a=>a.id===selAcc):null;
+  const nwk=wkf(nOff);
+  const dky=dkf(dOff);
+  const fAccs=data.accounts.filter(a=>!search||[a.name,a.poc.name,a.industry].some(x=>x.toLowerCase().includes(search.toLowerCase())));
+  const ren=data.accounts.filter(a=>{if(!a.renewalDate)return false;const diff=(new Date(a.renewalDate)-new Date())/86400000;return diff>=0&&diff<=60;}).sort((a,b)=>new Date(a.renewalDate)-new Date(b.renewalDate));
+  const totalOpen=data.accounts.flatMap(a=>Object.values(a.tasks||{}).flat()).filter(t=>!t.done&&!t.ended).length;
+  const atRisk=data.accounts.filter(a=>a.status==="risk").length;
+  const filteredInsurers=allInsurers.filter(i=>{
+    const mt=insFilter==="all"||(insFilter==="carrier"&&i.types.includes("carrier"))||(insFilter==="tpa"&&i.types.includes("tpa"))||(insFilter==="hmo"&&i.types.includes("hmo"));
+    const ms=!insSearch||i.name.toLowerCase().includes(insSearch.toLowerCase());
+    return mt&&ms;
+  });
+
+  function addAcc(){if(!form.name.trim())return;const id=data.nextId;save(d=>({accounts:[...d.accounts,{...unflat(form),id,subsidiaries:[],notes:{},tasks:{},activity:[{id:Date.now(),msg:"Account created",ts:new Date().toISOString()}],renewalUpdates:[]}],nextId:d.nextId+1}));setForm(flatA(eAcc()));setShowAdd(false);}
+  function updAcc(){save(d=>({accounts:d.accounts.map(a=>a.id===acc.id?{...acc,...unflat(form)}:a)}));log(acc.id,"Account updated");setShowEdit(false);}
+  function delAcc(id){if(!window.confirm("Delete?"))return;save(d=>({accounts:d.accounts.filter(a=>a.id!==id)}));setSelAcc(null);}
+  function addSub(){if(!subForm.name.trim()||!acc)return;const sub={id:Date.now(),...subForm,employees:parseInt(subForm.employees)||0};save(d=>({accounts:d.accounts.map(a=>a.id===acc.id?{...a,subsidiaries:[...(a.subsidiaries||[]),sub]}:a)}));log(acc.id,`Subsidiary: "${subForm.name}"`);setSubForm({name:"",employees:"",poc:"",pocEmail:"",pocPhone:""});setShowSub(false);}
+  function delSub(sid){save(d=>({accounts:d.accounts.map(a=>a.id===acc.id?{...a,subsidiaries:(a.subsidiaries||[]).filter(s=>s.id!==sid)}:a)}));}
+
+  const saveNote=useCallback(()=>{if(!note.trim()||!acc)return;save(d=>({accounts:d.accounts.map(a=>a.id===acc.id?{...a,notes:{...a.notes,[nwk]:[...(a.notes[nwk]||[]),{id:Date.now(),text:note,ts:new Date().toISOString()}]}}:a)}));log(acc.id,`Note: "${note.slice(0,40)}"`);setNote("");},[note,acc,nwk,save,log]);
+  function delNote(nid){save(d=>({accounts:d.accounts.map(a=>a.id===acc.id?{...a,notes:{...a.notes,[nwk]:(a.notes[nwk]||[]).filter(n=>n.id!==nid)}}:a)}));}
+
+  const addTask=useCallback(()=>{if(!task.trim()||!acc)return;save(d=>({accounts:d.accounts.map(a=>a.id===acc.id?{...a,tasks:{...a.tasks,[dky]:[...(a.tasks[dky]||[]),{id:Date.now(),text:task,time:taskTime,done:false,ended:false,updates:[]}]}}:a)}));log(acc.id,`Task: "${task.slice(0,40)}"`);setTask("");setTaskTime("");},[task,taskTime,acc,dky,save,log]);
+
+  // Task actions
+  function endTask(tid,dy,aid){
+    const ta=aid||acc?.id,tdy=dy||dky;
+    save(d=>({accounts:d.accounts.map(a=>a.id===ta?{...a,tasks:{...a.tasks,[tdy]:(a.tasks[tdy]||[]).map(t=>t.id===tid?{...t,done:true,ended:true}:t)}}:a)}));
+    log(ta,"Task ended ✓");
+  }
+  function togTask(tid,dy,aid){const ta=aid||acc?.id,tdy=dy||dky;save(d=>({accounts:d.accounts.map(a=>a.id===ta?{...a,tasks:{...a.tasks,[tdy]:(a.tasks[tdy]||[]).map(t=>t.id===tid?{...t,done:!t.done}:t)}}:a)}));}
+  function delTask(tid,dy,aid){const ta=aid||acc?.id,tdy=dy||dky;save(d=>({accounts:d.accounts.map(a=>a.id===ta?{...a,tasks:{...a.tasks,[tdy]:(a.tasks[tdy]||[]).filter(t=>t.id!==tid)}}:a)}));}
+
+  function handleTaskUpdate(updateText){
+    const{task:t,accId:ta,dayK:tdy}=taskAction;
+    save(d=>({accounts:d.accounts.map(a=>a.id===ta?{...a,tasks:{...a.tasks,[tdy]:(a.tasks[tdy]||[]).map(tk=>tk.id===t.id?{...tk,updates:[...(tk.updates||[]),{text:updateText,ts:new Date().toISOString()}]}:tk)}}:a)}));
+    log(ta,`Task update: "${updateText.slice(0,40)}"`);setTaskAction(null);
+  }
+  function handleAddRelated(text,aId,time){
+    const today=td();
+    save(d=>({accounts:d.accounts.map(a=>a.id===aId?{...a,tasks:{...a.tasks,[today]:[...(a.tasks[today]||[]),{id:Date.now(),text,time,done:false,ended:false,updates:[]}]}}:a)}));
+    log(aId,`Related task added: "${text.slice(0,40)}"`);setTaskAction(null);
+  }
+
+  const addCalTask=useCallback(()=>{if(!calTask.text.trim()||!calTask.accId)return;const aId=parseInt(calTask.accId);save(d=>({accounts:d.accounts.map(a=>a.id===aId?{...a,tasks:{...a.tasks,[calDay]:[...(a.tasks[calDay]||[]),{id:Date.now(),text:calTask.text,time:calTask.time,done:false,ended:false,updates:[]}]}}:a)}));log(aId,`Cal task: "${calTask.text.slice(0,40)}"`);setCalTask({text:"",time:"",accId:""});setShowCalAdd(false);},[calTask,calDay,save,log]);
+
+  // Insurer CRUD
+  function saveInsurer(){
+    if(!insForm.name.trim()||(insForm.types||[]).length===0){alert("Name and at least one type required.");return;}
+    if(insModal.mode==="add"){
+      const newIns={id:"custom_"+Date.now(),name:insForm.name,logo:insForm.logo||null,url:insForm.url||null,types:insForm.types,builtin:false};
+      save(d=>({customInsurers:[...(d.customInsurers||[]),newIns]}));
+    } else {
+      save(d=>({customInsurers:(d.customInsurers||[]).map(i=>i.id===insModal.insurer.id?{...i,...insForm}:i)}));
+    }
+    setInsModal(null);
+  }
+  function delInsurer(id){if(!window.confirm("Delete this insurer?"))return;save(d=>({customInsurers:(d.customInsurers||[]).filter(i=>i.id!==id)}));}
+
+  // Renewal updates
+  function addRenewalUpdate(accId){
+    const text=(renewalInput[accId]||"").trim();
+    if(!text)return;
+    save(d=>({accounts:d.accounts.map(a=>a.id===accId?{...a,renewalUpdates:[...(a.renewalUpdates||[]),{id:Date.now(),text,ts:new Date().toISOString()}]}:a)}));
+    setRenewalInput(r=>({...r,[accId]:""}));
+  }
+  function secureRenewal(accId,{carrierId,tpaId,tpaIsCarrier,hmoId,renewalDate}){
+    save(d=>({accounts:d.accounts.map(a=>a.id===accId?{...a,carrierId,tpaId,tpaIsCarrier,hmoId,renewalDate,renewalUpdates:[...(a.renewalUpdates||[]),{id:Date.now(),text:"🎉 Renewal secured!",ts:new Date().toISOString()}]}:a)}));
+    log(accId,"Renewal secured ✓ — insurers updated");setSecureModal(null);setSelAcc(accId);setView("accounts");
+  }
+
+  function handleGTask(text,aName){
+    const full=`[AM] ${text} — ${aName}`;
+    navigator.clipboard.writeText(full).then(()=>{setCopiedId(full);setTimeout(()=>setCopiedId(null),2000);window.open("https://tasks.google.com/tasks/","_blank");}).catch(()=>window.open("https://tasks.google.com/tasks/","_blank"));
+  }
+
+  const hourTasks=(dy,hr)=>data.accounts.flatMap(a=>(a.tasks[dy]||[]).map(t=>({...t,accName:a.name,accId:a.id}))).filter(t=>t.time&&parseInt(t.time.split(":")[0])===hr);
+  const untimedTasks=dy=>data.accounts.flatMap(a=>(a.tasks[dy]||[]).map(t=>({...t,accName:a.name,accId:a.id}))).filter(t=>!t.time);
+  const selDayTasks=data.accounts.flatMap(a=>(a.tasks[calDay]||[]).map(t=>({...t,accName:a.name,accId:a.id})));
+  const nowH=new Date().getHours(),today=td();
+  const days=wdays(calOff);
+  const s0=sunOf(calOff),e0=new Date(s0);e0.setDate(e0.getDate()+6);
+  const rl=`${s0.toLocaleDateString("en-GB",{day:"numeric",month:"short"})} – ${e0.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}`;
+  const calLabel=calOff===0?"This week":calOff===-1?"Last week":rl;
+  const DNAMES=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  // ── Task row component (used in both calendar day view and account tasks) ──
+  function TaskRow({t,dy,aid,aName,showAcc=false}){
+    const taskKey=`[AM] ${t.text} — ${aName}`;
+    return(
+      <div style={{borderBottom:"1px solid #f0f4f8"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",flexWrap:"wrap",opacity:t.ended?0.5:1}}>
+          <input type="checkbox" checked={t.done||t.ended} onChange={()=>togTask(t.id,dy,aid)} style={{accentColor:"#0fa890",width:15,height:15,cursor:"pointer",flexShrink:0}}/>
+          {t.ended&&<span style={{fontSize:10,background:"#e8faf8",color:"#0fa890",borderRadius:20,padding:"1px 8px",fontWeight:700}}>✓ Done</span>}
+          {t.time&&!t.ended&&<span style={{fontSize:11,color:"#0fa890",fontWeight:700,background:"#e8faf8",padding:"1px 7px",borderRadius:20,whiteSpace:"nowrap"}}>{t.time}</span>}
+          <span style={{fontSize:13,flex:1,minWidth:60,textDecoration:(t.done||t.ended)?"line-through":"none",color:(t.done||t.ended)?"#c0cdd8":"#0f1c2e",fontWeight:500}}>{t.text}</span>
+          {showAcc&&<span onClick={()=>{setSelAcc(aid);setView("accounts");setTab("tasks");}} style={{fontSize:11,color:"#0fa890",background:"#e8faf8",padding:"2px 9px",borderRadius:20,cursor:"pointer",fontWeight:700,whiteSpace:"nowrap"}}>{aName}</span>}
+          {/* Action buttons */}
+          {!t.ended&&<>
+            <button style={c.taskActBtn("#e0392e","#fff0ef")} onClick={()=>endTask(t.id,dy,aid)} title="End task">⏹ End</button>
+            <button style={c.taskActBtn("#d4880a","#fff8e6")} onClick={()=>setTaskAction({mode:"update",task:t,accId:aid,dayK:dy})} title="Add update">✏ Update</button>
+            <button style={c.taskActBtn("#4285f4","#e8f0fe")} onClick={()=>setTaskAction({mode:"related",task:t,accId:aid,dayK:dy})} title="Add related task">＋ Related</button>
+          </>}
+          <a href={gcalLink(t,dy||dky,aName)} target="_blank" rel="noopener noreferrer" style={c.gcalBtn}>📅</a>
+          <button style={c.gtaskBtn} onClick={()=>handleGTask(t.text,aName)} title="Copy & open Google Tasks">{copiedId===taskKey?"✓":"✓ GTask"}</button>
+          <button style={c.del} onClick={()=>delTask(t.id,dy,aid)}>✕</button>
+        </div>
+        {/* Updates */}
+        {(t.updates||[]).length>0&&(
+          <div style={{paddingLeft:24,paddingBottom:6}}>
+            {t.updates.map((u,i)=>(
+              <div key={i} style={{fontSize:11,color:"#7a9ab5",padding:"2px 0",display:"flex",gap:6}}>
+                <span style={{color:"#c0cdd8"}}>{new Date(u.ts).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</span>
+                <span>{u.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Account logo helper ───────────────────────────────────────────────────
+  function AccAvatar({a,size=33}){
+    const[err,setErr]=useState(false);
+    if(a.logoUrl&&!err)return <img src={a.logoUrl} alt={a.name} style={{width:size,height:size,objectFit:"contain",borderRadius:size>35?10:8,background:"#f7fbff",border:"1px solid #edf2f7",padding:3,flexShrink:0}} onError={()=>setErr(true)}/>;
+    return <div style={{...c.ava(a.name),width:size,height:size,fontSize:size>35?13:11}}>{ii(a.name)}</div>;
+  }
+
+  // InsurerTags for account health
+  function InsurerTags({a}){
+    const carrier=a.carrierId?insurerById[a.carrierId]:null;
+    const tpa=a.tpaIsCarrier?carrier:(a.tpaId?insurerById[a.tpaId]:null);
+    const hmo=a.hmoId?insurerById[a.hmoId]:null;
+    if(!carrier&&!tpa&&!hmo)return null;
+    return(
+      <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:5}}>
+        {carrier&&<span style={{fontSize:10,background:"#e8f0fe",color:"#4285f4",borderRadius:20,padding:"1px 8px",fontWeight:600}}>{carrier.name}</span>}
+        {tpa&&!a.tpaIsCarrier&&<span style={{fontSize:10,background:"#e8faf5",color:"#0fa890",borderRadius:20,padding:"1px 8px",fontWeight:600}}>{tpa.name}</span>}
+        {a.tpaIsCarrier&&<span style={{fontSize:10,background:"#e8faf5",color:"#0fa890",borderRadius:20,padding:"1px 8px",fontWeight:600}}>TPA = Carrier</span>}
+        {hmo&&<span style={{fontSize:10,background:"#fce8ff",color:"#9333ea",borderRadius:20,padding:"1px 8px",fontWeight:600}}>{hmo.name}</span>}
+      </div>
+    );
+  }
+
+  return(
+    <div style={c.root}>
+      <div style={c.hdr}>
+        <div style={c.logo}>✦ AM Command</div>
+        <div style={{display:"flex",gap:2}}>
+          {[["overview","Overview"],["accounts","Accounts"],["insurers","Insurers"]].map(([v,l])=>(
+            <button key={v} style={c.nb(view===v)} onClick={()=>{setView(v);if(v!=="accounts")setSelAcc(null);}}>{l}</button>
+          ))}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={c.syncBadge(syncOk)}>{syncOk===null?"⟳ ":syncOk?"☁ ":"⚠ "}{syncMsg}</div>
+          <div style={{fontSize:12,color:"#4a6080",fontWeight:600}}>{new Date().toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</div>
+        </div>
+      </div>
+
+      <div style={c.main}>
+        <div style={c.sRow}>
+          {[["Accounts",data.accounts.length,"#a78bfa"],["Open tasks",totalOpen,"#60a5fa"],["Renewals ≤60d",ren.length,"#d4880a"],["At risk",atRisk,"#e0392e"]].map(([l,v,col])=>(
+            <div key={l} style={c.sc(col)}><div style={c.sn(col)}>{v}</div><div style={c.sl}>{l}</div></div>
+          ))}
+        </div>
+
+        {/* ══ OVERVIEW ══ */}
+        {view==="overview"&&(
+          <div>
+            {/* Renewal alerts with updates */}
+            {ren.length>0&&(
+              <div style={{background:"#fffbeb",border:"1.5px solid #f6d860",borderRadius:14,padding:"12px 18px",marginBottom:14}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}} onClick={()=>setShowRen(r=>!r)}>
+                  <span style={{fontSize:13,color:"#92680a",fontWeight:700,fontFamily:"'Clash Display',sans-serif"}}>⚠ {ren.length} renewal{ren.length>1?"s":""} due within 60 days</span>
+                  <span style={{fontSize:12,color:"#b08030",fontWeight:600}}>{showRen?"Hide ↑":"Show ↓"}</span>
+                </div>
+                {showRen&&<div style={{marginTop:12,display:"flex",flexDirection:"column",gap:14}}>
+                  {ren.map(a=>{
+                    const diff=Math.ceil((new Date(a.renewalDate)-new Date())/86400000);
+                    const col=diff<=30?"#e0392e":diff<=45?"#d4880a":"#7a6500";
+                    const bg=diff<=30?"#fff0ef":diff<=45?"#fff8e6":"#fefce8";
+                    return(
+                      <div key={a.id} style={{background:bg,border:`1px solid ${col}33`,borderRadius:12,padding:"12px 14px"}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                          <div style={{display:"flex",alignItems:"center",gap:9,cursor:"pointer"}} onClick={()=>{setSelAcc(a.id);setView("accounts");}}>
+                            <AccAvatar a={a} size={30}/>
+                            <div><div style={{fontSize:13,fontWeight:700,fontFamily:"'Clash Display',sans-serif"}}>{a.name}</div><div style={{fontSize:11,color:"#7a9ab5"}}>Renews {new Date(a.renewalDate).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div></div>
+                          </div>
+                          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                            <span style={{fontSize:14,fontWeight:700,color:col,fontFamily:"'Clash Display',sans-serif"}}>{diff}d left</span>
+                            <button style={{...c.taskActBtn("#0fa890","#e8faf8"),fontSize:11,padding:"4px 12px"}} onClick={()=>setSecureModal(a)}>🎉 Renewal Secured</button>
+                          </div>
+                        </div>
+                        {/* Renewal updates log */}
+                        {(a.renewalUpdates||[]).length>0&&(
+                          <div style={{background:"rgba(255,255,255,0.6)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
+                            {(a.renewalUpdates||[]).map(u=>(
+                              <div key={u.id} style={{display:"flex",gap:8,padding:"3px 0",fontSize:12}}>
+                                <span style={{color:"#b08030",fontWeight:600,whiteSpace:"nowrap"}}>{new Date(u.ts).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>
+                                <span style={{color:"#5a4010"}}>{u.text}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Add update input */}
+                        <div style={{display:"flex",gap:8}}>
+                          <input style={{...c.ti,fontSize:12}} placeholder="Add renewal update…" value={renewalInput[a.id]||""} onChange={e=>setRenewalInput(r=>({...r,[a.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addRenewalUpdate(a.id)}/>
+                          <button style={{...c.sv,padding:"6px 14px",fontSize:12}} onClick={()=>addRenewalUpdate(a.id)}>Add</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>}
+              </div>
+            )}
+
+            {/* Calendar */}
+            <div style={{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,overflow:"hidden",marginBottom:14}}>
+              <div style={{padding:"12px 16px",borderBottom:"1px solid #edf2f7",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:14,fontWeight:700,color:"#0fa890",fontFamily:"'Clash Display',sans-serif"}}>Weekly calendar</span>
+                <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                  <button style={c.aBtn} onClick={()=>{setCalTask({text:"",time:"",accId:data.accounts[0]?.id?.toString()||""});setShowCalAdd(true);}}>+ Add task</button>
+                  <WeekNav off={calOff} setOff={setCalOff} label={calLabel}/>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"54px repeat(7,1fr)",borderBottom:"1px solid #edf2f7"}}>
+                <div style={{borderRight:"1px solid #edf2f7"}}/>
+                {days.map((dy,i)=>{const it=dy===today,is=dy===calDay,oc=data.accounts.flatMap(a=>(a.tasks[dy]||[])).filter(t=>!t.done&&!t.ended).length;return(
+                  <div key={dy} onClick={()=>setCalDay(dy)} style={{padding:"8px 6px",textAlign:"center",cursor:"pointer",background:is?"#e8faf8":it?"#f0fdf8":"#fff",borderRight:i<6?"1px solid #edf2f7":"none"}}>
+                    <div style={{fontSize:9,fontWeight:700,color:it?"#0fa890":"#7a9ab5",textTransform:"uppercase",letterSpacing:0.8,fontFamily:"'Clash Display',sans-serif"}}>{DNAMES[i]}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:is?"#0fa890":it?"#0a1628":"#c0cdd8",fontFamily:"'Clash Display',sans-serif"}}>{new Date(dy).getDate()}</div>
+                    {oc>0&&<div style={{fontSize:9,color:"#0fa890",fontWeight:700}}>{oc} open</div>}
+                  </div>
+                );})}
+              </div>
+              <div style={{overflowY:"auto",maxHeight:460}}>
+                {HRS.map(hr=>(
+                  <div key={hr} style={{display:"grid",gridTemplateColumns:"54px repeat(7,1fr)",borderBottom:"1px solid #f0f4f8",minHeight:54}}>
+                    <div style={{padding:"6px 8px 0 0",borderRight:"1px solid #edf2f7",fontSize:10,color:"#7a9ab5",fontWeight:600,textAlign:"right"}}>{fhr(hr)}</div>
+                    {days.map((dy,i)=>{const ts=hourTasks(dy,hr),inow=dy===today&&nowH===hr,is=dy===calDay;return(
+                      <div key={dy} onClick={()=>setCalDay(dy)} style={{padding:"3px 4px",borderRight:i<6?"1px solid #f0f4f8":"none",background:inow?"#f0fdf8":is?"#fafffe":"#fff",cursor:"pointer",position:"relative"}}>
+                        {inow&&<div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"#0fa890",opacity:0.6}}/>}
+                        {ts.map(t=>(
+                          <div key={t.id} className="task-pill" style={{background:t.ended?"#e8faf8":t.done?"#f0f4f8":"#e8faf8",color:t.ended?"#0fa890":t.done?"#a0b0c0":"#0f1c2e",borderLeft:`2px solid ${t.ended?"#0fa890":"#5dd8c8"}`,textDecoration:t.done&&!t.ended?"line-through":"none"}}>
+                            {t.ended?"✓ ":""}{t.time&&`${t.time} `}{t.text.length>10?t.text.slice(0,10)+"…":t.text}
+                            <span className="task-tooltip">{t.time&&<strong>{t.time} · </strong>}{t.text}<br/><span style={{opacity:0.6,fontSize:10}}>{t.accName}</span>{(t.updates||[]).length>0&&<><br/><span style={{opacity:0.7}}>Updates: {t.updates.length}</span></>}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );})}
+                  </div>
+                ))}
+                <div style={{display:"grid",gridTemplateColumns:"54px repeat(7,1fr)",background:"#fafcfe",borderTop:"1px solid #edf2f7"}}>
+                  <div style={{padding:"4px 8px 4px 0",borderRight:"1px solid #edf2f7",fontSize:9,color:"#7a9ab5",fontWeight:700,textAlign:"right",textTransform:"uppercase",letterSpacing:0.5}}>No<br/>time</div>
+                  {days.map((dy,i)=>{const ts=untimedTasks(dy);return(
+                    <div key={dy} onClick={()=>setCalDay(dy)} style={{padding:"3px 4px",borderRight:i<6?"1px solid #f0f4f8":"none",cursor:"pointer",background:dy===calDay?"#fafffe":"#fff"}}>
+                      {ts.slice(0,2).map(t=>(
+                        <div key={t.id} className="task-pill" style={{background:t.ended?"#e8faf8":t.done?"#f0f4f8":"#fff8e6",color:t.ended?"#0fa890":t.done?"#a0b0c0":"#0f1c2e",borderLeft:`2px solid ${t.ended?"#0fa890":"#d4880a"}`,textDecoration:t.done&&!t.ended?"line-through":"none"}}>
+                          {t.ended?"✓ ":""}{t.text.length>10?t.text.slice(0,10)+"…":t.text}
+                          <span className="task-tooltip">{t.text}<br/><span style={{opacity:0.6,fontSize:10}}>{t.accName}</span></span>
+                        </div>
+                      ))}
+                      {ts.length>2&&<div style={{fontSize:9,color:"#7a9ab5",fontWeight:600}}>+{ts.length-2}</div>}
+                    </div>
+                  );})}
+                </div>
+              </div>
+            </div>
+
+            {/* Selected day */}
+            <div style={{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,overflow:"hidden",marginBottom:14}}>
+              <div style={{padding:"12px 16px",borderBottom:"1px solid #edf2f7",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:14,fontWeight:700,color:"#0f1c2e",fontFamily:"'Clash Display',sans-serif"}}>{fday(calDay)}</span>
+                <span style={{fontSize:12,color:"#7a9ab5",fontWeight:600}}>{selDayTasks.length} task{selDayTasks.length!==1?"s":""}</span>
+              </div>
+              <div style={{padding:"8px 16px 14px"}}>
+                {selDayTasks.length===0?<div style={{padding:"1.5rem",textAlign:"center",color:"#c0cdd8",fontSize:13}}>No tasks. Hit "+ Add task" above.</div>
+                :[...selDayTasks].sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99")).map(t=>(
+                  <TaskRow key={t.id} t={t} dy={calDay} aid={t.accId} aName={t.accName} showAcc={true}/>
+                ))}
+              </div>
+            </div>
+
+            {/* Account health */}
+            <div style={{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,overflow:"hidden"}}>
+              <div style={{padding:"12px 16px",borderBottom:"1px solid #edf2f7",fontSize:14,fontWeight:700,color:"#0fa890",fontFamily:"'Clash Display',sans-serif"}}>Account health</div>
+              <div style={{padding:"0 16px 8px"}}>
+                {data.accounts.length===0?<div style={{padding:"1.5rem",textAlign:"center",color:"#c0cdd8",fontSize:13}}>No accounts yet.</div>
+                :data.accounts.map(a=>{const op=Object.values(a.tasks||{}).flat().filter(t=>!t.done&&!t.ended).length,diff=a.renewalDate?Math.ceil((new Date(a.renewalDate)-new Date())/86400000):null;return(
+                  <div key={a.id} onClick={()=>{setSelAcc(a.id);setView("accounts");}} style={{padding:"10px 0",borderBottom:"1px solid #f0f4f8",cursor:"pointer"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <AccAvatar a={a}/>
+                      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,fontFamily:"'Clash Display',sans-serif"}}>{a.name}</div><div style={{fontSize:11,color:"#7a9ab5"}}>{a.poc.name} · {a.employees} emp.</div></div>
+                      <div style={{textAlign:"right"}}><span style={c.badge(a.status)}>{SC[a.status]?.label}</span><div style={{fontSize:11,color:"#7a9ab5",marginTop:3}}>{op>0?`${op} open`:""}{diff!==null&&diff>=0&&diff<=60?` · ${diff}d to renewal`:""}</div></div>
+                    </div>
+                    <InsurerTags a={a}/>
+                  </div>
+                );})}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ ACCOUNTS ══ */}
+        {view==="accounts"&&(
+          <div style={c.grid}>
+            <div style={c.sidebar}>
+              <div style={c.sHead}><span style={c.sTitle}>Accounts</span><button style={c.aBtn} onClick={()=>{setForm(flatA(eAcc()));setShowAdd(true);}}>+ Add</button></div>
+              <div style={{padding:"8px 10px"}}><input style={c.srch} placeholder="Search accounts…" value={search} onChange={e=>setSearch(e.target.value)}/></div>
+              {fAccs.length===0&&<div style={{padding:"1rem",textAlign:"center",color:"#c0cdd8",fontSize:13}}>{search?"No results.":"No accounts yet."}</div>}
+              {fAccs.map(a=>(
+                <div key={a.id} style={c.ai(selAcc===a.id)} onClick={()=>setSelAcc(a.id)}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:SC[a.status]?.text,flexShrink:0}}/>
+                  <AccAvatar a={a}/>
+                  <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontFamily:"'Clash Display',sans-serif"}}>{a.name}</div><div style={{fontSize:11,color:"#7a9ab5"}}>{a.industry}</div></div>
+                </div>
+              ))}
+            </div>
+
+            {!acc?<div style={{...c.panel,padding:"3rem",textAlign:"center",color:"#c0cdd8"}}>Select an account.</div>:(
+              <div style={c.panel}>
+                <div style={c.pH}>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <AccAvatar a={acc} size={42}/>
+                    <div><div style={{fontSize:15,fontWeight:700,fontFamily:"'Clash Display',sans-serif"}}>{acc.name}</div><div style={{fontSize:12,color:"#7a9ab5"}}>{acc.industry}</div></div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button style={c.aBtn} onClick={()=>{setForm(flatA(acc));setShowEdit(true);}}>Edit</button>
+                    <button style={{...c.aBtn,color:"#e0392e",borderColor:"#e0392e44",background:"#fff0ef"}} onClick={()=>delAcc(acc.id)}>Delete</button>
+                  </div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,padding:"14px 18px"}}>
+                  {[["Employees",acc.employees.toLocaleString()],["Status",null],["Renewal",acc.renewalDate?new Date(acc.renewalDate).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):"—"],["Days left",acc.renewalDate?Math.max(0,Math.ceil((new Date(acc.renewalDate)-new Date())/86400000))+"d":"—"]].map(([l,v])=>(
+                    <div key={l} style={c.ic}><div style={c.iL}>{l}</div>{l==="Status"?<div style={{marginTop:4}}><span style={c.badge(acc.status)}>{SC[acc.status]?.label}</span></div>:<div style={c.iV}>{v}</div>}</div>
+                  ))}
+                </div>
+
+                {/* Insurance card */}
+                {(acc.carrierId||acc.tpaId||acc.hmoId)&&(
+                  <div style={{margin:"0 18px 14px",background:"#f0f6ff",border:"1px solid #c7dcff",borderRadius:12,padding:14}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#4285f4",textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>Insurance Setup</div>
+                    <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                      {acc.carrierId&&insurerById[acc.carrierId]&&(()=>{const ins=insurerById[acc.carrierId];return(
+                        <div style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1px solid #c7dcff",borderRadius:10,padding:"8px 12px",minWidth:120}}>
+                          <InsurerLogo ins={ins}/>
+                          <div><div style={{fontSize:9,fontWeight:700,color:"#4285f4",textTransform:"uppercase"}}>Risk Carrier</div><div style={{fontSize:12,fontWeight:700}}>{ins.name}</div>{ins.url&&<a href={ins.url} target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:"#4285f4",textDecoration:"none"}}>Visit →</a>}</div>
+                        </div>
+                      );})()}
+                      {(acc.tpaIsCarrier?acc.carrierId:acc.tpaId)&&(()=>{const ins=acc.tpaIsCarrier?insurerById[acc.carrierId]:insurerById[acc.tpaId];if(!ins)return null;return(
+                        <div style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1px solid #b2f0df",borderRadius:10,padding:"8px 12px",minWidth:120}}>
+                          <InsurerLogo ins={ins}/>
+                          <div><div style={{fontSize:9,fontWeight:700,color:"#0fa890",textTransform:"uppercase"}}>TPA{acc.tpaIsCarrier?" (= Carrier)":""}</div><div style={{fontSize:12,fontWeight:700}}>{ins.name}</div>{ins.url&&<a href={ins.url} target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:"#0fa890",textDecoration:"none"}}>Visit →</a>}</div>
+                        </div>
+                      );})()}
+                      {acc.hmoId&&insurerById[acc.hmoId]&&(()=>{const ins=insurerById[acc.hmoId];return(
+                        <div style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1px solid #e9c7ff",borderRadius:10,padding:"8px 12px",minWidth:120}}>
+                          <InsurerLogo ins={ins}/>
+                          <div><div style={{fontSize:9,fontWeight:700,color:"#9333ea",textTransform:"uppercase"}}>HMO</div><div style={{fontSize:12,fontWeight:700}}>{ins.name}</div>{ins.url&&<a href={ins.url} target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:"#9333ea",textDecoration:"none"}}>Visit →</a>}</div>
+                        </div>
+                      );})()}
+                    </div>
+                  </div>
+                )}
+
+                {/* POC */}
+                <div style={{margin:"0 18px 14px",background:"#f7fbff",border:"1px solid #edf2f7",borderRadius:12,padding:16}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                    <div style={{...c.ava(acc.poc.name||"?"),width:44,height:44,fontSize:14}}>{ii(acc.poc.name||"?")}</div>
+                    <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,fontFamily:"'Clash Display',sans-serif"}}>{acc.poc.name||"—"}</div><div style={{fontSize:12,color:"#7a9ab5"}}>{acc.poc.title||"—"}</div></div>
+                    <div style={{display:"flex",gap:6}}>
+                      {acc.poc.email&&<a href={`mailto:${acc.poc.email}`} style={{background:"#e8faf8",border:"1px solid #5dd8c844",color:"#0fa890",borderRadius:8,padding:"5px 11px",fontSize:12,fontWeight:700,textDecoration:"none"}}>✉ Email</a>}
+                      {acc.poc.emailThreadUrl&&<a href={acc.poc.emailThreadUrl} target="_blank" rel="noopener noreferrer" style={{background:"#0a1628",border:"1px solid #162240",color:"#5dd8c8",borderRadius:8,padding:"5px 11px",fontSize:12,fontWeight:700,textDecoration:"none"}}>📬 Inbox</a>}
+                    </div>
+                  </div>
+                  {[["Phone",acc.poc.phone,null],["Email",acc.poc.email,acc.poc.email?`mailto:${acc.poc.email}`:null]].map(([l,v,href])=>(
+                    <div key={l} style={{fontSize:12,color:"#7a9ab5",padding:"6px 0",borderTop:"1px solid #edf2f7",display:"flex",gap:8}}>
+                      <span style={{color:"#c0cdd8",minWidth:42,fontWeight:600}}>{l}</span>
+                      {href?<a href={href} style={{color:"#0fa890",fontWeight:600,textDecoration:"none"}}>{v||"—"}</a>:<span style={{color:"#0f1c2e",fontWeight:500}}>{v||"—"}</span>}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Subsidiaries */}
+                <div style={{margin:"0 18px 14px"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"#7a9ab5",textTransform:"uppercase",letterSpacing:0.8}}>Subsidiaries ({(acc.subsidiaries||[]).length})</span>
+                    <button style={c.aBtn} onClick={()=>setShowSub(true)}>+ Add</button>
+                  </div>
+                  {(acc.subsidiaries||[]).length===0?<div style={{background:"#f7fbff",border:"1px dashed #dde8f0",borderRadius:10,padding:12,textAlign:"center",color:"#c0cdd8",fontSize:12}}>No subsidiaries yet.</div>
+                  :(acc.subsidiaries||[]).map(s=>(
+                    <div key={s.id} style={{background:"#f7fbff",border:"1px solid #edf2f7",borderRadius:10,padding:"10px 14px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{...c.ava(s.name),width:30,height:30,fontSize:10}}>{ii(s.name)}</div>
+                      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{s.name}</div><div style={{fontSize:11,color:"#7a9ab5"}}>{s.employees>0?`${s.employees} emp.`:""}{s.poc?` · ${s.poc}`:""}</div></div>
+                      {s.pocEmail&&<a href={`mailto:${s.pocEmail}`} style={{fontSize:11,color:"#0fa890",fontWeight:700,textDecoration:"none",background:"#e8faf8",padding:"2px 8px",borderRadius:20}}>✉</a>}
+                      <button style={c.del} onClick={()=>delSub(s.id)}>✕</button>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={c.tabs}>
+                  {[["notes","Weekly Notes"],["tasks","Daily Tasks"],["activity","Activity Log"]].map(([t,l])=>(
+                    <button key={t} style={c.tab(tab===t)} onClick={()=>setTab(t)}>{l}</button>
+                  ))}
+                </div>
+
+                {tab==="notes"&&(
+                  <div style={{padding:18}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                      <span style={{fontSize:13,fontWeight:600}}>Week notes</span>
+                      <WeekNav off={nOff} setOff={setNOff} label={nOff===0?"This week":nOff===-1?"Last week":nOff<0?`${Math.abs(nOff)}w ago`:`${nOff}w ahead`}/>
+                    </div>
+                    <NoteInput value={note} onChange={chNote} onSave={saveNote}/>
+                    {(acc.notes[nwk]||[]).length===0?<div style={{padding:"1rem 0",textAlign:"center",color:"#c0cdd8",fontSize:13}}>No notes this week.</div>
+                    :[...(acc.notes[nwk]||[])].reverse().map(n=>(
+                      <div key={n.id} style={{background:"#f7fbff",border:"1px solid #edf2f7",borderRadius:8,padding:12,marginTop:8,position:"relative"}}>
+                        <button style={c.del} onClick={()=>delNote(n.id)}>✕</button>
+                        <div style={{fontSize:13,lineHeight:1.65,color:"#0f1c2e",paddingRight:20}}>{n.text}</div>
+                        <div style={{fontSize:11,color:"#c0cdd8",marginTop:5}}>{new Date(n.ts).toLocaleString("en-GB",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"})}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {tab==="tasks"&&(
+                  <div style={{padding:18}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                      <span style={{fontSize:13,fontWeight:600}}>{fday(dky)}</span>
+                      <WeekNav off={dOff} setOff={setDOff} label={dOff===0?"Today":dOff===1?"Tomorrow":dOff===-1?"Yesterday":dOff<0?`${Math.abs(dOff)}d ago`:`In ${dOff}d`}/>
+                    </div>
+                    <TaskInput value={task} timeValue={taskTime} onChange={chTask} onTimeChange={chTaskTime} onAdd={addTask}/>
+                    {(acc.tasks[dky]||[]).length===0?<div style={{padding:"1rem 0",textAlign:"center",color:"#c0cdd8",fontSize:13}}>No tasks for this day.</div>
+                    :[...(acc.tasks[dky]||[])].sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99")).map(t=>(
+                      <TaskRow key={t.id} t={t} dy={dky} aid={acc.id} aName={acc.name}/>
+                    ))}
+                  </div>
+                )}
+
+                {tab==="activity"&&(
+                  <div style={{padding:18}}>
+                    <div style={{fontSize:13,fontWeight:600,marginBottom:12,color:"#7a9ab5"}}>Activity & task log</div>
+                    {(acc.activity||[]).length===0?<div style={{padding:"1rem 0",textAlign:"center",color:"#c0cdd8",fontSize:13}}>No activity yet.</div>
+                    :(acc.activity||[]).map(a=>(
+                      <div key={a.id} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:"1px solid #f0f4f8",alignItems:"flex-start"}}>
+                        <div style={{width:7,height:7,borderRadius:"50%",background:"#edf2f7",border:"1.5px solid #5dd8c8",marginTop:5,flexShrink:0}}/>
+                        <div style={{flex:1}}><div style={{fontSize:13,color:"#0f1c2e",fontWeight:500}}>{a.msg}</div><div style={{fontSize:11,color:"#c0cdd8",marginTop:2}}>{new Date(a.ts).toLocaleString("en-GB",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"})}</div></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══ INSURERS ══ */}
+        {view==="insurers"&&(
+          <div>
+            <div style={{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,padding:"14px 18px",marginBottom:14}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <input style={{...c.srch,marginBottom:0,maxWidth:240}} placeholder="Search insurers…" value={insSearch} onChange={e=>setInsSearch(e.target.value)}/>
+                <div style={{display:"flex",gap:6}}>
+                  {[["all","All"],["carrier","Risk Carriers"],["tpa","TPAs"],["hmo","HMOs"]].map(([v,l])=>(
+                    <button key={v} onClick={()=>setInsFilter(v)} style={{background:insFilter===v?"#0a1628":"#f0f4f8",color:insFilter===v?"#5dd8c8":"#7a9ab5",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>{l}</button>
+                  ))}
+                </div>
+                <button style={{...c.aBtn,marginLeft:"auto"}} onClick={()=>{setInsForm({name:"",logo:"",url:"",types:[]});setInsModal({mode:"add"});}}>+ Add insurer</button>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+              {[["Risk Carriers",allInsurers.filter(i=>i.types.includes("carrier")).length,"#4285f4"],["TPAs",allInsurers.filter(i=>i.types.includes("tpa")).length,"#0fa890"],["HMOs",allInsurers.filter(i=>i.types.includes("hmo")).length,"#9333ea"]].map(([l,v,col])=>(
+                <div key={l} style={{background:"#fff",border:`1.5px solid ${col}44`,borderRadius:14,padding:"14px 18px"}}>
+                  <div style={{fontSize:22,fontWeight:700,color:col,fontFamily:"'Clash Display',sans-serif"}}>{v}</div>
+                  <div style={{fontSize:11,color:"#7a9ab5",marginTop:2,textTransform:"uppercase",letterSpacing:0.8,fontWeight:600}}>{l}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
+              {filteredInsurers.map(ins=>{
+                const linked=data.accounts.filter(a=>a.carrierId===ins.id||a.tpaId===ins.id||(a.tpaIsCarrier&&a.carrierId===ins.id)||a.hmoId===ins.id);
+                return(
+                  <div key={ins.id} style={{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:10}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <InsurerLogo ins={ins}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:700,fontFamily:"'Clash Display',sans-serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ins.name}</div>
+                        <div style={{display:"flex",gap:3,marginTop:3,flexWrap:"wrap"}}>
+                          {ins.types.map(t=><span key={t} style={c.typeTag(t)}>{t==="carrier"?"Risk Carrier":t==="tpa"?"TPA":"HMO"}</span>)}
+                          {!ins.builtin&&<span style={{fontSize:9,background:"#f3f0ff",color:"#a78bfa",borderRadius:20,padding:"2px 7px",fontWeight:700}}>Custom</span>}
+                        </div>
+                      </div>
+                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                        {ins.url&&<a href={ins.url} target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:"#4285f4",fontWeight:700,textDecoration:"none",background:"#e8f0fe",padding:"2px 8px",borderRadius:20,whiteSpace:"nowrap"}}>Website →</a>}
+                        {!ins.builtin&&<>
+                          <button onClick={()=>{setInsForm({name:ins.name,logo:ins.logo||"",url:ins.url||"",types:ins.types});setInsModal({mode:"edit",insurer:ins});}} style={{fontSize:10,color:"#d4880a",fontWeight:700,background:"#fff8e6",border:"none",borderRadius:20,padding:"2px 8px",cursor:"pointer"}}>Edit</button>
+                          <button onClick={()=>delInsurer(ins.id)} style={{fontSize:10,color:"#e0392e",fontWeight:700,background:"#fff0ef",border:"none",borderRadius:20,padding:"2px 8px",cursor:"pointer"}}>Delete</button>
+                        </>}
+                      </div>
+                    </div>
+                    {linked.length>0&&(
+                      <div>
+                        <div style={{fontSize:10,fontWeight:700,color:"#7a9ab5",textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Linked accounts ({linked.length})</div>
+                        {linked.map(a=>(
+                          <div key={a.id} onClick={()=>{setSelAcc(a.id);setView("accounts");}} style={{display:"flex",alignItems:"center",gap:8,background:"#f7fbff",borderRadius:8,padding:"5px 10px",cursor:"pointer",border:"1px solid #edf2f7",marginBottom:4}}>
+                            <AccAvatar a={a} size={20}/>
+                            <span style={{fontSize:12,fontWeight:600,flex:1}}>{a.name}</span>
+                            <span style={{...c.badge(a.status),fontSize:9,padding:"1px 6px"}}>{SC[a.status]?.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {linked.length===0&&<div style={{fontSize:11,color:"#c0cdd8",textAlign:"center"}}>No accounts linked</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Modals ── */}
+      {showAdd&&<AccModal title="Add new account" d={form} ch={chForm} allInsurers={allInsurers} onSave={addAcc} onClose={()=>setShowAdd(false)}/>}
+      {showEdit&&<AccModal title={`Edit · ${acc?.name}`} d={form} ch={chForm} allInsurers={allInsurers} onSave={updAcc} onClose={()=>setShowEdit(false)}/>}
+      {showCalAdd&&<CalAddModal day={calDay} accounts={data.accounts} ct={calTask} ch={chCal} onSave={addCalTask} onClose={()=>setShowCalAdd(false)}/>}
+      {insModal&&<InsurerFormModal title={insModal.mode==="add"?"Add Insurer":"Edit Insurer"} d={insForm} ch={chIns} onSave={saveInsurer} onClose={()=>setInsModal(null)}/>}
+      {secureModal&&<RenewalSecuredModal acc={secureModal} allInsurers={allInsurers} onClose={()=>setSecureModal(null)} onSecure={(details)=>secureRenewal(secureModal.id,details)}/>}
+      {taskAction&&<TaskActionModal mode={taskAction.mode} task={taskAction.task} accounts={data.accounts} accId={taskAction.accId} onClose={()=>setTaskAction(null)} onSubmit={taskAction.mode==="update"?handleTaskUpdate:handleAddRelated}/>}
+      {showSub&&(
+        <div style={c.modal} onClick={e=>e.target===e.currentTarget&&setShowSub(false)}>
+          <div style={{...c.mBox,width:400}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:4,fontFamily:"'Clash Display',sans-serif"}}>Add Subsidiary</div>
+            <div style={{fontSize:12,color:"#7a9ab5",marginBottom:16}}>Under {acc?.name}</div>
+            {[["Subsidiary name","name","text"],["Employees","employees","number"],["POC name","poc","text"],["POC email","pocEmail","email"],["POC phone","pocPhone","text"]].map(([lb,k,t])=>(
+              <div key={k}><label style={c.fl}>{lb}</label><input style={c.fi} type={t} value={subForm[k]} onChange={e=>setSubForm(f=>({...f,[k]:e.target.value}))}/></div>
+            ))}
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+              <button style={c.cBtn} onClick={()=>setShowSub(false)}>Cancel</button>
+              <button style={c.sv} onClick={addSub}>Add</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Dashboard/>);
+</script>
+</body>
+</html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AM Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f0f4f8;}
+input,textarea,select,button{font-family:inherit;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:#f0f4f8;}
+::-webkit-scrollbar-thumb{background:#c0cdd8;border-radius:3px;}
+.task-pill{font-size:10px;border-radius:5px;padding:2px 5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;cursor:pointer;position:relative;}
+.task-pill:hover .task-tooltip{display:block;}
+.task-tooltip{display:none;position:absolute;left:0;top:100%;z-index:100;background:#0a1628;color:#fff;font-size:11px;padding:5px 9px;border-radius:7px;white-space:normal;min-width:150px;max-width:230px;line-height:1.4;box-shadow:0 4px 12px rgba(0,0,0,0.25);}
+.ins-logo{width:40px;height:40px;object-fit:contain;border-radius:8px;background:#f7fbff;border:1px solid #edf2f7;padding:3px;flex-shrink:0;}
+.ins-logo-sm{width:28px;height:28px;object-fit:contain;border-radius:6px;background:#f7fbff;border:1px solid #edf2f7;padding:2px;flex-shrink:0;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const SUPABASE_URL = "https://pjqgupbiynamrgxvyvfa.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqcWd1cGJpeW5hbXJneHZ5dmZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MTM3MjksImV4cCI6MjA5NTQ4OTcyOX0.8dvBlyp717OwhSmFoTnaCORbQaqO2OWbLnbKXQ4h2KI";
+
+const {useState,useEffect,useCallback,useRef,memo} = React;
+const LOCAL_KEY = "am_v5";
+const initData = ()=>({accounts:[],nextId:2});
+
+// ── Master insurer list ───────────────────────────────────────────────────────
+const INSURERS = [
+  // Risk Carriers
+  {id:"axa",name:"AXA Insurance",types:["carrier","tpa"],logo:"https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/AXA_Logo.svg/500px-AXA_Logo.svg.png",url:"https://www.axa-egypt.com/ar/home"},
+  {id:"metlife",name:"MetLife",types:["carrier","tpa"],logo:"https://images.seeklogo.com/logo-png/33/1/metlife-logo-png_seeklogo-330397.png",url:"https://www.metlife.eg/"},
+  {id:"misr",name:"Misr Insurance",types:["carrier"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTCkRo9ScAy1Cp63aSlHZrB2QhwLGdnwVmXsg&s",url:"https://misrins.com.eg/ar/"},
+  {id:"allianz",name:"Allianz",types:["carrier"],logo:"https://upload.wikimedia.org/wikipedia/commons/0/00/Allianz-logo.png",url:"https://www.allianz.com.eg/ar_EG.html"},
+  {id:"sci",name:"Suez Canal Insurance",types:["carrier"],logo:null,url:"https://www.sci-egypt.net/mainpage/"},
+  {id:"delta",name:"Delta Insurance",types:["carrier"],logo:null,url:null},
+  {id:"chubb",name:"CHUBB",types:["carrier"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ3YW0yZreL9_NqX5J7YKMITo_vh0lP9CB4bw&s",url:"https://life.chubb.com/mea-en/egypt/"},
+  {id:"gig",name:"GIG",types:["carrier"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpYK5I9q5-7yW2a2a4uBP5XQ_i97NMKwYlkw&s",url:"http://www.amig.com.eg/en/home.aspx"},
+  {id:"royal",name:"Royal Insurance",types:["carrier"],logo:"https://medmarktpa.com/storage/images/ProjectsHomeSlider/ProjectsHomeSlider_19507.png",url:"https://www.royalinsurance.com.eg/"},
+  {id:"sarwa",name:"Sarwa Insurance / Sarwa Life",types:["carrier"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR2kulnVB0T_kvKyLXKRxEuF0Ad9m0Ebgq5bw&s",url:"http://sarwa.capital/ar/insurance-products/"},
+  {id:"qnb",name:"QNB Insurance",types:["carrier"],logo:null,url:"http://www.qnbalahlilife.com/"},
+  {id:"egtak",name:"Egyptian Takaful Insurance",types:["carrier"],logo:null,url:"https://www.egtak.com/"},
+  {id:"esih",name:"Egyptian Saudi Insurance House",types:["carrier"],logo:null,url:null},
+  {id:"bupa",name:"Bupa",types:["carrier","tpa"],logo:"https://upload.wikimedia.org/wikipedia/commons/0/01/Bupa-logo_2022.png",url:"https://www.bupaglobal.com/en/for-you/egypt-health-insurance"},
+  {id:"iskan",name:"Iskan Insurance",types:["carrier"],logo:null,url:"https://www.iskaninsurance.com/"},
+  {id:"lst",name:"Libano Suisse Takaful",types:["carrier"],logo:"https://www.libano-suisse.com/contentfiles/346Image.jpg",url:"http://www.libano-suisse-takaful.com/egypt/english/home"},
+  {id:"arope",name:"Arope",types:["carrier"],logo:null,url:"http://www.arope.com/Aboutus/BLOMBankGroup/AROPEEgypt.aspx"},
+  {id:"tokio",name:"Tokyo Marine",types:["carrier"],logo:null,url:"https://www.tokiomarine.com.eg/"},
+  {id:"orient",name:"Orient Takaful",types:["carrier"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTi80AA7HUFqgNUCtBQPiBv0_-IuraqY4nXPw&s",url:"http://www.orienttakaful.com/"},
+  {id:"mohandes",name:"El Mohandes Insurance",types:["carrier"],logo:null,url:"http://www.mohins.com/"},
+  {id:"misremir",name:"Misr Emirates",types:["carrier"],logo:null,url:"https://metlico.com/"},
+  {id:"medgulf",name:"MEDGULF",types:["carrier"],logo:null,url:"https://www.medgulf.com.sa/"},
+  {id:"misrtak",name:"Misr Insurance Takaful",types:["carrier"],logo:null,url:"https://www.misr-takaful.com/"},
+  {id:"aig",name:"AIG",types:["carrier"],logo:null,url:"https://www.aig.eg/"},
+  {id:"wethaq",name:"Wethaq Takaful",types:["carrier"],logo:null,url:"https://www.wethaq-egypt.com/"},
+  // TPAs
+  {id:"globemed",name:"GlobeMed",types:["tpa"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRRk-XP8PvRXku-lEuGzJLrSQfJWqfmwQLG4Q&s",url:null},
+  {id:"medmark",name:"Medmark TPA",types:["tpa"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTQQUmGijKTSxOnKnsAHqq4NaPcrYTTx9T5bg&s",url:null},
+  {id:"nextcare",name:"NextCare Egypt",types:["tpa"],logo:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTtKZ7pKUdYPmn82LVUGLCG-UCs6qYipWXX-w&s",url:null},
+  {id:"medright",name:"Med Right",types:["tpa"],logo:"https://www.med-right.net/frontend/assets/img/Med-Right-Logo.png",url:null},
+  {id:"mednet",name:"MedNet Egypt",types:["tpa"],logo:"https://mednet.com/media/2025-07-28/279/c0aacedbd8bb064a2300bcd4ce145042.jpg",url:null},
+  // HMOs
+  {id:"sehaone",name:"SehaOne",types:["hmo"],logo:"https://media.licdn.com/dms/image/v2/D4D0BAQE4pdp9pCIVrg/company-logo_200_200/company-logo_200_200/0/1725802170206/sehaoneegypt_logo?e=2147483647&v=beta&t=bTwtESoqZqmESRjGYinnCBEiNbn3MNPyUdMROKhezdc",url:null},
+];
+
+const INSURER_BY_ID = {};
+INSURERS.forEach(i=>INSURER_BY_ID[i.id]=i);
+const carriers = INSURERS.filter(i=>i.types.includes("carrier"));
+const tpas     = INSURERS.filter(i=>i.types.includes("tpa"));
+const hmos     = INSURERS.filter(i=>i.types.includes("hmo"));
+
+// Defensive fallback
+const safeCarriers = carriers || [];
+const safeTpas = tpas || [];
+const safeHmos = hmos || [];
+
+const SC={healthy:{bg:"#e8faf5",text:"#0fa890",label:"Healthy"},attention:{bg:"#fff8e6",text:"#d4880a",label:"Needs Attention"},risk:{bg:"#fff0ef",text:"#e0392e",label:"At Risk"}};
+const AP=["#1565c0","#4527a0","#00695c","#6a1b9a","#ad1457","#0277bd","#00838f","#558b2f"];
+const ac=n=>AP[n.charCodeAt(0)%AP.length];
+const ii=n=>n.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+const td=()=>new Date().toISOString().slice(0,10);
+const dkf=off=>{const d=new Date();d.setDate(d.getDate()+off);return d.toISOString().slice(0,10);};
+const wkf=off=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+off*7);return d.toISOString().slice(0,10);};
+const fday=k=>new Date(k).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"short"});
+const HRS=Array.from({length:10},(_,i)=>i+9);
+const fhr=h=>`${h%12===0?12:h%12}${h<12?"am":"pm"}`;
+function sunOf(w=0){const d=new Date();d.setDate(d.getDate()-d.getDay()+w*7);d.setHours(0,0,0,0);return d;}
+function wdays(w=0){const s=sunOf(w);return Array.from({length:7},(_,i)=>{const d=new Date(s);d.setDate(d.getDate()+i);return d.toISOString().slice(0,10);});}
+function eAcc(){return{name:"",industry:"",employees:"",subsidiaries:[],poc:{name:"",title:"",phone:"",email:"",emailThreadUrl:""},renewalDate:"",status:"healthy",carrierId:"",tpaId:"",tpaIsCarrier:false,hmoId:""};}
+function flatA(a){return{name:a.name||"",industry:a.industry||"",employees:String(a.employees||""),renewalDate:a.renewalDate||"",status:a.status||"healthy",pn:a.poc?.name||"",pt:a.poc?.title||"",pp:a.poc?.phone||"",pe:a.poc?.email||"",pu:a.poc?.emailThreadUrl||"",carrierId:a.carrierId||"",tpaId:a.tpaId||"",tpaIsCarrier:a.tpaIsCarrier||false,hmoId:a.hmoId||""};}
+function unflat(f){return{name:f.name,industry:f.industry,employees:parseInt(f.employees)||0,renewalDate:f.renewalDate,status:f.status,poc:{name:f.pn,title:f.pt,phone:f.pp,email:f.pe,emailThreadUrl:f.pu},carrierId:f.carrierId||"",tpaId:f.tpaId||"",tpaIsCarrier:f.tpaIsCarrier||false,hmoId:f.hmoId||""};}
+
+function gcalLink(t,date,aName){
+  const base="https://calendar.google.com/calendar/render?action=TEMPLATE";
+  const title=encodeURIComponent(`[AM] ${t.text} — ${aName}`);
+  const desc=encodeURIComponent(`Account: ${aName}`);
+  if(t.time){
+    const[hh,mm]=t.time.split(":");
+    const s=new Date(`${date}T${hh}:${mm}:00`);
+    const e=new Date(s.getTime()+3600000);
+    const fmt=d=>d.toISOString().replace(/[-:]/g,"").split(".")[0]+"Z";
+    return `${base}&text=${title}&details=${desc}&dates=${fmt(s)}/${fmt(e)}`;
+  }
+  const d=date.replace(/-/g,"");
+  return `${base}&text=${title}&details=${desc}&dates=${d}/${d}`;
+}
+function copyAndOpenTasks(text){
+  navigator.clipboard.writeText(text).then(()=>{
+    window.open("https://tasks.google.com/tasks/","_blank");
+  }).catch(()=>{
+    window.open("https://tasks.google.com/tasks/","_blank");
+  });
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+const c={
+  root:{fontFamily:"'Plus Jakarta Sans',system-ui,sans-serif",minHeight:"100vh",background:"#f0f4f8",color:"#0f1c2e",paddingBottom:"3rem"},
+  hdr:{background:"#0a1628",borderBottom:"1px solid #162240",padding:"0 1.5rem",display:"flex",alignItems:"center",justifyContent:"space-between",height:58,position:"sticky",top:0,zIndex:50},
+  logo:{fontFamily:"'Clash Display',sans-serif",fontWeight:700,fontSize:17,color:"#5dd8c8"},
+  nb:a=>({background:a?"#162240":"transparent",border:"none",color:a?"#5dd8c8":"#4a6080",padding:"6px 14px",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}),
+  main:{maxWidth:1200,margin:"0 auto",padding:"1.25rem 1rem"},
+  sRow:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16},
+  sc:col=>({background:"#fff",border:`1.5px solid ${col}44`,borderRadius:14,padding:"14px 18px"}),
+  sn:col=>({fontSize:26,fontWeight:700,color:col,fontFamily:"'Clash Display',sans-serif"}),
+  sl:{fontSize:11,color:"#7a9ab5",marginTop:2,textTransform:"uppercase",letterSpacing:0.8,fontWeight:600},
+  grid:{display:"grid",gridTemplateColumns:"280px 1fr",gap:14},
+  sidebar:{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,overflow:"hidden",alignSelf:"start"},
+  sHead:{padding:"12px 14px",borderBottom:"1px solid #edf2f7",display:"flex",alignItems:"center",justifyContent:"space-between"},
+  sTitle:{fontSize:11,fontWeight:700,color:"#7a9ab5",textTransform:"uppercase",letterSpacing:1.2},
+  aBtn:{background:"#e8faf8",border:"1px solid #5dd8c844",color:"#0fa890",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer",fontWeight:700},
+  ai:a=>({padding:"10px 14px",cursor:"pointer",borderLeft:`3px solid ${a?"#5dd8c8":"transparent"}`,background:a?"#f0faf9":"transparent",display:"flex",alignItems:"center",gap:9,borderBottom:"1px solid #f0f4f8"}),
+  ava:n=>({width:33,height:33,borderRadius:"50%",background:ac(n),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}),
+  panel:{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,overflow:"hidden"},
+  pH:{padding:"14px 18px",borderBottom:"1px solid #edf2f7",display:"flex",alignItems:"center",justifyContent:"space-between",background:"#fafcfe"},
+  tabs:{display:"flex",borderBottom:"1px solid #edf2f7",background:"#fafcfe",overflowX:"auto"},
+  tab:a=>({padding:"10px 16px",cursor:"pointer",fontSize:13,fontWeight:600,color:a?"#0fa890":"#7a9ab5",background:"transparent",border:"none",borderBottom:`2px solid ${a?"#5dd8c8":"transparent"}`,whiteSpace:"nowrap"}),
+  ni:{width:"100%",background:"#f7fbff",border:"1.5px solid #dde8f0",borderRadius:10,padding:11,color:"#0f1c2e",fontSize:13,resize:"vertical",minHeight:72,fontFamily:"'Plus Jakarta Sans',sans-serif",boxSizing:"border-box"},
+  ti:{flex:1,background:"#f7fbff",border:"1.5px solid #dde8f0",borderRadius:10,padding:"8px 12px",color:"#0f1c2e",fontSize:13,fontFamily:"'Plus Jakarta Sans',sans-serif"},
+  sv:{background:"#0fa890",border:"none",color:"#fff",borderRadius:10,padding:"8px 18px",fontSize:13,cursor:"pointer",fontWeight:700},
+  del:{background:"none",border:"none",color:"#c0cdd8",cursor:"pointer",fontSize:14,padding:"2px 6px"},
+  badge:st=>({display:"inline-block",background:SC[st]?.bg,color:SC[st]?.text,fontSize:11,padding:"2px 10px",borderRadius:20,fontWeight:700}),
+  na:{display:"flex",alignItems:"center",gap:6},
+  narr:{background:"#f0f4f8",border:"1px solid #dde8f0",color:"#0fa890",width:27,height:27,borderRadius:8,cursor:"pointer",fontSize:17,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700},
+  nl:{fontSize:12,color:"#7a9ab5",minWidth:130,textAlign:"center",fontWeight:600},
+  ic:{background:"#f7fbff",border:"1px solid #edf2f7",borderRadius:10,padding:"10px 13px"},
+  iL:{fontSize:10,color:"#7a9ab5",textTransform:"uppercase",letterSpacing:0.8,fontWeight:700},
+  iV:{fontSize:14,fontWeight:700,marginTop:3,color:"#0f1c2e",fontFamily:"'Clash Display',sans-serif"},
+  modal:{position:"fixed",inset:0,background:"rgba(10,22,40,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200},
+  mBox:{background:"#fff",border:"1px solid #dde8f0",borderRadius:16,padding:24,width:480,maxHeight:"90vh",overflowY:"auto"},
+  fl:{fontSize:11,color:"#7a9ab5",marginBottom:4,display:"block",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5},
+  fi:{width:"100%",background:"#f7fbff",border:"1.5px solid #dde8f0",borderRadius:10,padding:"8px 12px",color:"#0f1c2e",fontSize:13,fontFamily:"'Plus Jakarta Sans',sans-serif",marginBottom:10,boxSizing:"border-box"},
+  cBtn:{background:"transparent",border:"1.5px solid #dde8f0",color:"#7a9ab5",borderRadius:10,padding:"7px 16px",fontSize:13,cursor:"pointer",fontWeight:600},
+  srch:{background:"#f7fbff",border:"1.5px solid #edf2f7",borderRadius:10,padding:"7px 12px",color:"#0f1c2e",fontSize:13,width:"100%",boxSizing:"border-box",marginBottom:8,fontFamily:"'Plus Jakarta Sans',sans-serif"},
+  syncBadge:ok=>({display:"flex",alignItems:"center",gap:5,fontSize:11,fontWeight:600,color:ok===true?"#0fa890":ok===false?"#e0392e":"#d4880a",background:ok===true?"#e8faf8":ok===false?"#fff0ef":"#fff8e6",padding:"3px 10px",borderRadius:20,border:`1px solid ${ok===true?"#5dd8c844":ok===false?"#e0392e44":"#f6d86044"}`}),
+  gcalBtn:{background:"#e8f0fe",border:"1px solid #4285f444",color:"#4285f4",borderRadius:6,padding:"2px 7px",fontSize:10,fontWeight:700,textDecoration:"none",whiteSpace:"nowrap"},
+  gtaskBtn:{background:"#e6f4ea",border:"1px solid #34a85344",color:"#1e8e3e",borderRadius:6,padding:"2px 7px",fontSize:10,fontWeight:700,textDecoration:"none",whiteSpace:"nowrap",cursor:"pointer"},
+  typeTag:t=>({display:"inline-block",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20,textTransform:"uppercase",letterSpacing:0.5,background:t==="carrier"?"#e8f0fe":t==="tpa"?"#e8faf5":"#fce8ff",color:t==="carrier"?"#4285f4":t==="tpa"?"#0fa890":"#9333ea"}),
+};
+
+// ── Stable lifted components ──────────────────────────────────────────────────
+const WeekNav=memo(({off,setOff,label})=>(
+  <div style={c.na}>
+    <button style={c.narr} onClick={()=>setOff(o=>o-1)}>‹</button>
+    <span style={c.nl}>{label}</span>
+    <button style={c.narr} onClick={()=>setOff(o=>o+1)}>›</button>
+  </div>
+));
+
+const NoteInput=memo(({value,onChange,onSave})=>(
+  <div style={{marginBottom:10}}>
+    <textarea style={c.ni} placeholder="Add a note… (Ctrl+Enter to save)" value={value} onChange={e=>onChange(e.target.value)} onKeyDown={e=>e.key==="Enter"&&e.ctrlKey&&onSave()}/>
+    <button style={c.sv} onClick={onSave}>Save note</button>
+  </div>
+));
+
+const TaskInput=memo(({value,timeValue,onChange,onTimeChange,onAdd})=>(
+  <div style={{display:"flex",gap:8,marginBottom:8}}>
+    <input style={c.ti} placeholder="Add a task… (Enter)" value={value} onChange={e=>onChange(e.target.value)} onKeyDown={e=>e.key==="Enter"&&onAdd()}/>
+    <select style={{...c.ti,flex:"0 0 110px",cursor:"pointer"}} value={timeValue} onChange={e=>onTimeChange(e.target.value)}>
+      <option value="">No time</option>
+      {HRS.map(h=>[0,30].map(m=>{const hh=String(h).padStart(2,"0"),mm=String(m).padStart(2,"0");return <option key={`${hh}:${mm}`} value={`${hh}:${mm}`}>{fhr(h)}{m===30?":30":""}</option>;})).flat()}
+    </select>
+    <button style={c.sv} onClick={onAdd}>Add</button>
+  </div>
+));
+
+const AccModal=memo(({title,d,ch,onSave,onClose})=>{
+  const myCarriers = INSURERS.filter(i=>i.types.includes("carrier"));
+  const myTpas     = INSURERS.filter(i=>i.types.includes("tpa"));
+  const myHmos     = INSURERS.filter(i=>i.types.includes("hmo"));
+  const tpaCarriers = myCarriers.filter(i=>i.types.includes("tpa"));
+  return(
+    <div style={c.modal} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={c.mBox}>
+        <div style={{fontSize:15,fontWeight:700,marginBottom:14,fontFamily:"'Clash Display',sans-serif"}}>{title}</div>
+        {[["Company name","name","text"],["Industry","industry","text"],["Employees","employees","number"],["Renewal date","renewalDate","date"]].map(([lb,k,t])=>(
+          <div key={k}><label style={c.fl}>{lb}</label><input style={c.fi} type={t} value={d[k]||""} onChange={e=>ch(k,e.target.value)}/></div>
+        ))}
+        <div><label style={c.fl}>Status</label>
+          <select style={c.fi} value={d.status||"healthy"} onChange={e=>ch("status",e.target.value)}>
+            <option value="healthy">Healthy</option><option value="attention">Needs Attention</option><option value="risk">At Risk</option>
+          </select>
+        </div>
+        <div style={{fontSize:11,fontWeight:700,color:"#4285f4",margin:"12px 0 8px",textTransform:"uppercase",letterSpacing:0.8,borderTop:"1px solid #edf2f7",paddingTop:12}}>Insurance Setup</div>
+        <div><label style={c.fl}>Risk Carrier</label>
+          <select style={c.fi} value={d.carrierId||""} onChange={e=>ch("carrierId",e.target.value)}>
+            <option value="">— Select carrier —</option>
+            {myCarriers.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+          </select>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+          <input type="checkbox" id="tpaIsCarrier" checked={d.tpaIsCarrier||false} onChange={e=>{ch("tpaIsCarrier",e.target.checked);if(e.target.checked)ch("tpaId",d.carrierId||"");else ch("tpaId","");}} style={{accentColor:"#0fa890",width:14,height:14,cursor:"pointer"}}/>
+          <label htmlFor="tpaIsCarrier" style={{fontSize:12,color:"#7a9ab5",cursor:"pointer"}}>Risk Carrier is also the TPA</label>
+        </div>
+        {!d.tpaIsCarrier&&(
+          <div><label style={c.fl}>TPA (Third Party Administrator)</label>
+            <select style={c.fi} value={d.tpaId||""} onChange={e=>ch("tpaId",e.target.value)}>
+              <option value="">— Select TPA —</option>
+              {myTpas.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+              <optgroup label="Carriers acting as TPA">
+                {tpaCarriers.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+              </optgroup>
+            </select>
+          </div>
+        )}
+        <div><label style={c.fl}>HMO (Health Management Organization)</label>
+          <select style={c.fi} value={d.hmoId||""} onChange={e=>ch("hmoId",e.target.value)}>
+            <option value="">— None / Not applicable —</option>
+            {myHmos.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+          </select>
+        </div>
+        <div style={{fontSize:11,fontWeight:700,color:"#7a9ab5",margin:"12px 0 8px",textTransform:"uppercase",letterSpacing:0.8,borderTop:"1px solid #edf2f7",paddingTop:12}}>Point of contact</div>
+        {[["Name","pn","text"],["Title","pt","text"],["Phone","pp","text"],["Email","pe","email"],["Email thread link","pu","url"]].map(([lb,k,t])=>(
+          <div key={k}><label style={c.fl}>{lb}</label><input style={c.fi} type={t} value={d[k]||""} onChange={e=>ch(k,e.target.value)} placeholder={k==="pu"?"https://mail.google.com/...":""}/></div>
+        ))}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+          <button style={c.cBtn} onClick={onClose}>Cancel</button>
+          <button style={c.sv} onClick={onSave}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const CalAddModal=memo(({day,accounts,ct,ch,onSave,onClose})=>(
+  <div style={c.modal} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{...c.mBox,width:420}}>
+      <div style={{fontSize:15,fontWeight:700,marginBottom:4,fontFamily:"'Clash Display',sans-serif"}}>Add task</div>
+      <div style={{fontSize:12,color:"#7a9ab5",marginBottom:16}}>{fday(day)}</div>
+      <label style={c.fl}>Task / activity</label>
+      <input style={c.fi} placeholder="e.g. Call HR, Follow up on claim…" value={ct.text} onChange={e=>ch("text",e.target.value)} onKeyDown={e=>e.key==="Enter"&&onSave()} autoFocus/>
+      <label style={c.fl}>Time (optional)</label>
+      <select style={c.fi} value={ct.time} onChange={e=>ch("time",e.target.value)}>
+        <option value="">No specific time</option>
+        {HRS.map(h=>[0,30].map(m=>{const hh=String(h).padStart(2,"0"),mm=String(m).padStart(2,"0");return <option key={`${hh}:${mm}`} value={`${hh}:${mm}`}>{fhr(h)}{m===30?":30":""}</option>;})).flat()}
+      </select>
+      <label style={c.fl}>Link to account</label>
+      <select style={c.fi} value={ct.accId} onChange={e=>ch("accId",e.target.value)}>
+        <option value="">— Select account —</option>
+        {accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+      </select>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
+        <button style={c.cBtn} onClick={onClose}>Cancel</button>
+        <button style={{...c.sv,opacity:(!ct.text.trim()||!ct.accId)?0.5:1}} onClick={onSave} disabled={!ct.text.trim()||!ct.accId}>Add task</button>
+      </div>
+    </div>
+  </div>
+));
+
+// ── Insurer Logo component ─────────────────────────────────────────────────────
+function InsurerLogo({ins,size="sm"}){
+  const [err,setErr]=useState(false);
+  if(!ins)return null;
+  const cls=size==="sm"?"ins-logo-sm":"ins-logo";
+  if(ins.logo&&!err) return <img src={ins.logo} alt={ins.name} className={cls} onError={()=>setErr(true)}/>;
+  return <div style={{width:size==="sm"?28:40,height:size==="sm"?28:40,borderRadius:size==="sm"?6:8,background:ac(ins.name),display:"flex",alignItems:"center",justifyContent:"center",fontSize:size==="sm"?9:11,fontWeight:700,color:"#fff",flexShrink:0}}>{ii(ins.name)}</div>;
+}
+
+// ── Insurer mini tag for account card ─────────────────────────────────────────
+function InsurerTags({acc}){
+  const carrier=acc.carrierId?INSURER_BY_ID[acc.carrierId]:null;
+  const tpa=acc.tpaIsCarrier?carrier:(acc.tpaId?INSURER_BY_ID[acc.tpaId]:null);
+  const hmo=acc.hmoId?INSURER_BY_ID[acc.hmoId]:null;
+  if(!carrier&&!tpa&&!hmo)return null;
+  return(
+    <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}}>
+      {carrier&&<div style={{display:"flex",alignItems:"center",gap:4,background:"#e8f0fe",borderRadius:20,padding:"2px 8px 2px 4px",fontSize:10,fontWeight:600,color:"#4285f4"}}>
+        <InsurerLogo ins={carrier} size="xs"/>
+        <span style={{marginLeft:2}}>{carrier.name}</span>
+      </div>}
+      {tpa&&tpa.id!==carrier?.id&&<div style={{display:"flex",alignItems:"center",gap:4,background:"#e8faf5",borderRadius:20,padding:"2px 8px 2px 4px",fontSize:10,fontWeight:600,color:"#0fa890"}}>
+        <InsurerLogo ins={tpa} size="xs"/>
+        <span style={{marginLeft:2}}>{tpa.name}</span>
+      </div>}
+      {acc.tpaIsCarrier&&carrier&&<span style={{background:"#e8faf5",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:600,color:"#0fa890"}}>TPA: Same as Carrier</span>}
+      {hmo&&<div style={{display:"flex",alignItems:"center",gap:4,background:"#fce8ff",borderRadius:20,padding:"2px 8px 2px 4px",fontSize:10,fontWeight:600,color:"#9333ea"}}>
+        <InsurerLogo ins={hmo} size="xs"/>
+        <span style={{marginLeft:2}}>{hmo.name}</span>
+      </div>}
+    </div>
+  );
+}
+
+// ── Main Dashboard ────────────────────────────────────────────────────────────
+function Dashboard(){
+  const[data,setData]=useState(()=>{try{const s=localStorage.getItem(LOCAL_KEY);return s?JSON.parse(s):initData();}catch{return initData();}});
+  const[syncOk,setSyncOk]=useState(null);
+  const[syncMsg,setSyncMsg]=useState("Connecting…");
+  const[view,setView]=useState("overview");
+  const[selAcc,setSelAcc]=useState(null);
+  const[calOff,setCalOff]=useState(0);
+  const[nOff,setNOff]=useState(0);
+  const[dOff,setDOff]=useState(0);
+  const[showAdd,setShowAdd]=useState(false);
+  const[showEdit,setShowEdit]=useState(false);
+  const[form,setForm]=useState(flatA(eAcc()));
+  const[note,setNote]=useState("");
+  const[task,setTask]=useState("");
+  const[taskTime,setTaskTime]=useState("");
+  const[tab,setTab]=useState("notes");
+  const[calDay,setCalDay]=useState(td());
+  const[search,setSearch]=useState("");
+  const[insSearch,setInsSearch]=useState("");
+  const[showRen,setShowRen]=useState(false);
+  const[showCalAdd,setShowCalAdd]=useState(false);
+  const[calTask,setCalTask]=useState({text:"",time:"",accId:""});
+  const[showSub,setShowSub]=useState(false);
+  const[subForm,setSubForm]=useState({name:"",employees:"",poc:"",pocEmail:"",pocPhone:""});
+  const[insFilter,setInsFilter]=useState("all"); // all|carrier|tpa|hmo
+  const[copiedId,setCopiedId]=useState(null);
+
+  const syncTimer=useRef(null);
+  const mounted=useRef(true);
+  useEffect(()=>()=>{mounted.current=false;},[]);
+
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const res=await fetch(`${SUPABASE_URL}/rest/v1/am_data?id=eq.main&select=payload`,{
+          headers:{"apikey":SUPABASE_KEY,"Authorization":`Bearer ${SUPABASE_KEY}`,"Content-Type":"application/json"}
+        });
+        const rows=await res.json();
+        if(rows&&rows[0]?.payload&&mounted.current){
+          setData(rows[0].payload);
+          localStorage.setItem(LOCAL_KEY,JSON.stringify(rows[0].payload));
+          setSyncOk(true);setSyncMsg("Synced ✓");
+        } else {
+          await pushREST(data);
+          setSyncOk(true);setSyncMsg("Synced ✓");
+        }
+      }catch(e){setSyncOk(false);setSyncMsg("Offline — local only");}
+    })();
+  },[]);
+
+  async function pushREST(nd){
+    await fetch(`${SUPABASE_URL}/rest/v1/am_data`,{
+      method:"POST",
+      headers:{"apikey":SUPABASE_KEY,"Authorization":`Bearer ${SUPABASE_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},
+      body:JSON.stringify({id:"main",payload:nd,updated_at:new Date().toISOString()})
+    });
+  }
+
+  const push=useCallback(nd=>{
+    setSyncOk(null);setSyncMsg("Saving…");
+    clearTimeout(syncTimer.current);
+    syncTimer.current=setTimeout(async()=>{
+      try{await pushREST(nd);if(mounted.current){setSyncOk(true);setSyncMsg("Synced ✓");}}
+      catch{if(mounted.current){setSyncOk(false);setSyncMsg("Sync failed");}}
+    },600);
+  },[]);
+
+  const save=useCallback(fn=>{
+    setData(d=>{const n={...d,...fn(d)};localStorage.setItem(LOCAL_KEY,JSON.stringify(n));push(n);return n;});
+  },[push]);
+
+  const log=useCallback((id,msg)=>{
+    save(d=>({accounts:d.accounts.map(a=>a.id===id?{...a,activity:[{id:Date.now(),msg,ts:new Date().toISOString()},...(a.activity||[])].slice(0,50)}:a)}));
+  },[save]);
+
+  const chForm=useCallback((k,v)=>setForm(f=>({...f,[k]:v})),[]);
+  const chCal=useCallback((k,v)=>setCalTask(f=>({...f,[k]:v})),[]);
+  const chNote=useCallback(v=>setNote(v),[]);
+  const chTask=useCallback(v=>setTask(v),[]);
+  const chTaskTime=useCallback(v=>setTaskTime(v),[]);
+
+  const acc=selAcc?data.accounts.find(a=>a.id===selAcc):null;
+  const nwk=wkf(nOff);
+  const dky=dkf(dOff);
+  const fAccs=data.accounts.filter(a=>!search||[a.name,a.poc.name,a.industry].some(x=>x.toLowerCase().includes(search.toLowerCase())));
+  const ren=data.accounts.filter(a=>{if(!a.renewalDate)return false;const diff=(new Date(a.renewalDate)-new Date())/86400000;return diff>=0&&diff<=60;}).sort((a,b)=>new Date(a.renewalDate)-new Date(b.renewalDate));
+  const totalOpen=data.accounts.flatMap(a=>Object.values(a.tasks||{}).flat()).filter(t=>!t.done).length;
+  const atRisk=data.accounts.filter(a=>a.status==="risk").length;
+
+  function addAcc(){if(!form.name.trim())return;const id=data.nextId;save(d=>({accounts:[...d.accounts,{...unflat(form),id,subsidiaries:[],notes:{},tasks:{},activity:[{id:Date.now(),msg:"Account created",ts:new Date().toISOString()}]}],nextId:d.nextId+1}));setForm(flatA(eAcc()));setShowAdd(false);}
+  function updAcc(){save(d=>({accounts:d.accounts.map(a=>a.id===acc.id?{...acc,...unflat(form)}:a)}));log(acc.id,"Account updated");setShowEdit(false);}
+  function delAcc(id){if(!window.confirm("Delete?"))return;save(d=>({accounts:d.accounts.filter(a=>a.id!==id)}));setSelAcc(null);}
+  function addSub(){if(!subForm.name.trim()||!acc)return;const sub={id:Date.now(),...subForm,employees:parseInt(subForm.employees)||0};save(d=>({accounts:d.accounts.map(a=>a.id===acc.id?{...a,subsidiaries:[...(a.subsidiaries||[]),sub]}:a)}));log(acc.id,`Subsidiary: "${subForm.name}"`);setSubForm({name:"",employees:"",poc:"",pocEmail:"",pocPhone:""});setShowSub(false);}
+  function delSub(sid){save(d=>({accounts:d.accounts.map(a=>a.id===acc.id?{...a,subsidiaries:(a.subsidiaries||[]).filter(s=>s.id!==sid)}:a)}));}
+
+  const saveNote=useCallback(()=>{
+    if(!note.trim()||!acc)return;
+    save(d=>({accounts:d.accounts.map(a=>a.id===acc.id?{...a,notes:{...a.notes,[nwk]:[...(a.notes[nwk]||[]),{id:Date.now(),text:note,ts:new Date().toISOString()}]}}:a)}));
+    log(acc.id,`Note: "${note.slice(0,40)}"`);setNote("");
+  },[note,acc,nwk,save,log]);
+
+  function delNote(nid){save(d=>({accounts:d.accounts.map(a=>a.id===acc.id?{...a,notes:{...a.notes,[nwk]:(a.notes[nwk]||[]).filter(n=>n.id!==nid)}}:a)}));}
+
+  const addTask=useCallback(()=>{
+    if(!task.trim()||!acc)return;
+    save(d=>({accounts:d.accounts.map(a=>a.id===acc.id?{...a,tasks:{...a.tasks,[dky]:[...(a.tasks[dky]||[]),{id:Date.now(),text:task,time:taskTime,done:false}]}}:a)}));
+    log(acc.id,`Task: "${task.slice(0,40)}"`);setTask("");setTaskTime("");
+  },[task,taskTime,acc,dky,save,log]);
+
+  function togTask(tid,dy,aid){const ta=aid||acc?.id,tdy=dy||dky,tac=data.accounts.find(a=>a.id===ta),t=(tac?.tasks[tdy]||[]).find(t=>t.id===tid);save(d=>({accounts:d.accounts.map(a=>a.id===ta?{...a,tasks:{...a.tasks,[tdy]:(a.tasks[tdy]||[]).map(t=>t.id===tid?{...t,done:!t.done}:t)}}:a)}));if(t)log(ta,t.done?`Unchecked: "${t.text.slice(0,30)}"`:` Done: "${t.text.slice(0,30)}"`);}
+  function delTask(tid,dy,aid){const ta=aid||acc?.id,tdy=dy||dky;save(d=>({accounts:d.accounts.map(a=>a.id===ta?{...a,tasks:{...a.tasks,[tdy]:(a.tasks[tdy]||[]).filter(t=>t.id!==tid)}}:a)}));}
+
+  const addCalTask=useCallback(()=>{
+    if(!calTask.text.trim()||!calTask.accId)return;
+    const aId=parseInt(calTask.accId);
+    save(d=>({accounts:d.accounts.map(a=>a.id===aId?{...a,tasks:{...a.tasks,[calDay]:[...(a.tasks[calDay]||[]),{id:Date.now(),text:calTask.text,time:calTask.time,done:false}]}}:a)}));
+    log(aId,`Cal task: "${calTask.text.slice(0,40)}"`);
+    setCalTask({text:"",time:"",accId:""});setShowCalAdd(false);
+  },[calTask,calDay,save,log]);
+
+  function handleGTask(taskText,accName){
+    const full=`[AM] ${taskText} — ${accName}`;
+    navigator.clipboard.writeText(full).then(()=>{
+      setCopiedId(full);
+      setTimeout(()=>setCopiedId(null),2000);
+      window.open("https://tasks.google.com/tasks/","_blank");
+    }).catch(()=>window.open("https://tasks.google.com/tasks/","_blank"));
+  }
+
+  const hourTasks=(dy,hr)=>data.accounts.flatMap(a=>(a.tasks[dy]||[]).map(t=>({...t,accName:a.name,accId:a.id}))).filter(t=>t.time&&parseInt(t.time.split(":")[0])===hr);
+  const untimedTasks=dy=>data.accounts.flatMap(a=>(a.tasks[dy]||[]).map(t=>({...t,accName:a.name,accId:a.id}))).filter(t=>!t.time);
+  const selDayTasks=data.accounts.flatMap(a=>(a.tasks[calDay]||[]).map(t=>({...t,accName:a.name,accId:a.id})));
+  const nowH=new Date().getHours();
+  const today=td();
+  const days=wdays(calOff);
+  const s0=sunOf(calOff),e0=new Date(s0);e0.setDate(e0.getDate()+6);
+  const rl=`${s0.toLocaleDateString("en-GB",{day:"numeric",month:"short"})} – ${e0.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}`;
+  const calLabel=calOff===0?"This week":calOff===-1?"Last week":rl;
+  const DNAMES=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  // Filtered insurer list — compute inline from INSURERS directly
+  const filteredInsurers=INSURERS.filter(i=>{
+    const matchType=insFilter==="all"
+      ||(insFilter==="carrier"&&i.types.includes("carrier"))
+      ||(insFilter==="tpa"&&i.types.includes("tpa"))
+      ||(insFilter==="hmo"&&i.types.includes("hmo"));
+    const matchSearch=!insSearch||i.name.toLowerCase().includes(insSearch.toLowerCase());
+    return matchType&&matchSearch;
+  });
+
+  // Accounts using each insurer
+  function accsForInsurer(insId){
+    return data.accounts.filter(a=>a.carrierId===insId||a.tpaId===insId||(a.tpaIsCarrier&&a.carrierId===insId)||a.hmoId===insId);
+  }
+
+  return(
+    <div style={c.root}>
+      {/* Header */}
+      <div style={c.hdr}>
+        <div style={c.logo}>✦ AM Command</div>
+        <div style={{display:"flex",gap:2}}>
+          {[["overview","Overview"],["accounts","Accounts"],["insurers","Insurers"]].map(([v,l])=>(
+            <button key={v} style={c.nb(view===v)} onClick={()=>{setView(v);if(v!=="accounts")setSelAcc(null);}}>{l}</button>
+          ))}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={c.syncBadge(syncOk)}>{syncOk===null?"⟳ ":syncOk?"☁ ":"⚠ "}{syncMsg}</div>
+          <div style={{fontSize:12,color:"#4a6080",fontWeight:600}}>{new Date().toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric"})}</div>
+        </div>
+      </div>
+
+      <div style={c.main}>
+        {/* Stats */}
+        <div style={c.sRow}>
+          {[["Accounts",data.accounts.length,"#a78bfa"],["Open tasks",totalOpen,"#60a5fa"],["Renewals ≤60d",ren.length,"#d4880a"],["At risk",atRisk,"#e0392e"]].map(([l,v,col])=>(
+            <div key={l} style={c.sc(col)}><div style={c.sn(col)}>{v}</div><div style={c.sl}>{l}</div></div>
+          ))}
+        </div>
+
+        {/* ══ OVERVIEW ══ */}
+        {view==="overview"&&(
+          <div>
+            {ren.length>0&&(
+              <div style={{background:"#fffbeb",border:"1.5px solid #f6d860",borderRadius:14,padding:"12px 18px",marginBottom:14,cursor:"pointer"}} onClick={()=>setShowRen(r=>!r)}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span style={{fontSize:13,color:"#92680a",fontWeight:700,fontFamily:"'Clash Display',sans-serif"}}>⚠ {ren.length} renewal{ren.length>1?"s":""} due within 60 days</span>
+                  <span style={{fontSize:12,color:"#b08030",fontWeight:600}}>{showRen?"Hide ↑":"Show ↓"}</span>
+                </div>
+                {showRen&&<div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6}}>
+                  {ren.map(a=>{const diff=Math.ceil((new Date(a.renewalDate)-new Date())/86400000),col=diff<=30?"#e0392e":diff<=45?"#d4880a":"#7a6500",bg=diff<=30?"#fff0ef":diff<=45?"#fff8e6":"#fefce8";return(
+                    <div key={a.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:bg,border:`1px solid ${col}33`,borderRadius:10,padding:"9px 13px",cursor:"pointer"}} onClick={e=>{e.stopPropagation();setSelAcc(a.id);setView("accounts");}}>
+                      <div style={{display:"flex",alignItems:"center",gap:9}}><div style={c.ava(a.name)}>{ii(a.name)}</div><div><div style={{fontSize:13,fontWeight:700,fontFamily:"'Clash Display',sans-serif"}}>{a.name}</div><div style={{fontSize:11,color:"#7a9ab5"}}>Renews {new Date(a.renewalDate).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div></div></div>
+                      <div style={{fontSize:14,fontWeight:700,color:col,fontFamily:"'Clash Display',sans-serif"}}>{diff}d left</div>
+                    </div>
+                  );})}
+                </div>}
+              </div>
+            )}
+
+            {/* Calendar */}
+            <div style={{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,overflow:"hidden",marginBottom:14}}>
+              <div style={{padding:"12px 16px",borderBottom:"1px solid #edf2f7",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:14,fontWeight:700,color:"#0fa890",fontFamily:"'Clash Display',sans-serif"}}>Weekly calendar</span>
+                <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                  <button style={c.aBtn} onClick={()=>{setCalTask({text:"",time:"",accId:data.accounts[0]?.id?.toString()||""});setShowCalAdd(true);}}>+ Add task</button>
+                  <WeekNav off={calOff} setOff={setCalOff} label={calLabel}/>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"54px repeat(7,1fr)",borderBottom:"1px solid #edf2f7"}}>
+                <div style={{borderRight:"1px solid #edf2f7"}}/>
+                {days.map((dy,i)=>{const it=dy===today,is=dy===calDay,oc=data.accounts.flatMap(a=>(a.tasks[dy]||[])).filter(t=>!t.done).length;return(
+                  <div key={dy} onClick={()=>setCalDay(dy)} style={{padding:"8px 6px",textAlign:"center",cursor:"pointer",background:is?"#e8faf8":it?"#f0fdf8":"#fff",borderRight:i<6?"1px solid #edf2f7":"none"}}>
+                    <div style={{fontSize:9,fontWeight:700,color:it?"#0fa890":"#7a9ab5",textTransform:"uppercase",letterSpacing:0.8,fontFamily:"'Clash Display',sans-serif"}}>{DNAMES[i]}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:is?"#0fa890":it?"#0a1628":"#c0cdd8",fontFamily:"'Clash Display',sans-serif"}}>{new Date(dy).getDate()}</div>
+                    {oc>0&&<div style={{fontSize:9,color:"#0fa890",fontWeight:700}}>{oc} open</div>}
+                  </div>
+                );})}
+              </div>
+              <div style={{overflowY:"auto",maxHeight:460}}>
+                {HRS.map(hr=>(
+                  <div key={hr} style={{display:"grid",gridTemplateColumns:"54px repeat(7,1fr)",borderBottom:"1px solid #f0f4f8",minHeight:54}}>
+                    <div style={{padding:"6px 8px 0 0",borderRight:"1px solid #edf2f7",fontSize:10,color:"#7a9ab5",fontWeight:600,textAlign:"right"}}>{fhr(hr)}</div>
+                    {days.map((dy,i)=>{
+                      const ts=hourTasks(dy,hr),inow=dy===today&&nowH===hr,is=dy===calDay;
+                      return(
+                        <div key={dy} onClick={()=>setCalDay(dy)} style={{padding:"3px 4px",borderRight:i<6?"1px solid #f0f4f8":"none",background:inow?"#f0fdf8":is?"#fafffe":"#fff",cursor:"pointer",position:"relative"}}>
+                          {inow&&<div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"#0fa890",opacity:0.6}}/>}
+                          {ts.map(t=>(
+                            <div key={t.id} className="task-pill" style={{background:t.done?"#f0f4f8":"#e8faf8",color:t.done?"#a0b0c0":"#0f1c2e",borderLeft:"2px solid #0fa890",textDecoration:t.done?"line-through":"none"}}>
+                              {t.time} {t.text.length>10?t.text.slice(0,10)+"…":t.text}
+                              <span className="task-tooltip">{t.time&&<strong>{t.time} · </strong>}{t.text}<br/><span style={{opacity:0.6,fontSize:10}}>{t.accName}</span></span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+                <div style={{display:"grid",gridTemplateColumns:"54px repeat(7,1fr)",background:"#fafcfe",borderTop:"1px solid #edf2f7"}}>
+                  <div style={{padding:"4px 8px 4px 0",borderRight:"1px solid #edf2f7",fontSize:9,color:"#7a9ab5",fontWeight:700,textAlign:"right",textTransform:"uppercase",letterSpacing:0.5}}>No<br/>time</div>
+                  {days.map((dy,i)=>{const ts=untimedTasks(dy);return(
+                    <div key={dy} onClick={()=>setCalDay(dy)} style={{padding:"3px 4px",borderRight:i<6?"1px solid #f0f4f8":"none",cursor:"pointer",background:dy===calDay?"#fafffe":"#fff"}}>
+                      {ts.slice(0,2).map(t=>(
+                        <div key={t.id} className="task-pill" style={{background:t.done?"#f0f4f8":"#fff8e6",color:t.done?"#a0b0c0":"#0f1c2e",borderLeft:"2px solid #d4880a",textDecoration:t.done?"line-through":"none"}}>
+                          {t.text.length>10?t.text.slice(0,10)+"…":t.text}
+                          <span className="task-tooltip">{t.text}<br/><span style={{opacity:0.6,fontSize:10}}>{t.accName}</span></span>
+                        </div>
+                      ))}
+                      {ts.length>2&&<div style={{fontSize:9,color:"#7a9ab5",fontWeight:600}}>+{ts.length-2}</div>}
+                    </div>
+                  );})}
+                </div>
+              </div>
+            </div>
+
+            {/* Selected day */}
+            <div style={{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,overflow:"hidden",marginBottom:14}}>
+              <div style={{padding:"12px 16px",borderBottom:"1px solid #edf2f7",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:14,fontWeight:700,color:"#0f1c2e",fontFamily:"'Clash Display',sans-serif"}}>{fday(calDay)}</span>
+                <span style={{fontSize:12,color:"#7a9ab5",fontWeight:600}}>{selDayTasks.length} task{selDayTasks.length!==1?"s":""}</span>
+              </div>
+              <div style={{padding:"8px 16px 14px"}}>
+                {selDayTasks.length===0?<div style={{padding:"1.5rem",textAlign:"center",color:"#c0cdd8",fontSize:13}}>No tasks. Hit "+ Add task" above.</div>
+                :[...selDayTasks].sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99")).map(t=>{
+                  const aName=data.accounts.find(a=>a.id===t.accId)?.name||"";
+                  const taskKey=`[AM] ${t.text} — ${aName}`;
+                  return(
+                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid #f0f4f8",flexWrap:"wrap"}}>
+                      <input type="checkbox" checked={t.done} onChange={()=>togTask(t.id,calDay,t.accId)} style={{accentColor:"#0fa890",width:15,height:15,cursor:"pointer",flexShrink:0}}/>
+                      {t.time&&<span style={{fontSize:11,color:"#0fa890",fontWeight:700,background:"#e8faf8",padding:"1px 7px",borderRadius:20,whiteSpace:"nowrap"}}>{t.time}</span>}
+                      <span style={{fontSize:13,flex:1,minWidth:80,textDecoration:t.done?"line-through":"none",color:t.done?"#a0b0c0":"#0f1c2e",fontWeight:500,opacity:t.done?0.5:1}}>{t.text}</span>
+                      <span onClick={()=>{setSelAcc(t.accId);setView("accounts");setTab("tasks");}} style={{fontSize:11,color:"#0fa890",background:"#e8faf8",padding:"2px 9px",borderRadius:20,cursor:"pointer",fontWeight:700,whiteSpace:"nowrap"}}>{t.accName}</span>
+                      <a href={gcalLink(t,calDay,aName)} target="_blank" rel="noopener noreferrer" style={c.gcalBtn}>📅 GCal</a>
+                      <button style={c.gtaskBtn} onClick={()=>handleGTask(t.text,aName)} title="Copies task to clipboard then opens Google Tasks">
+                        {copiedId===taskKey?"✓ Copied!":"✓ GTask"}
+                      </button>
+                      <button style={c.del} onClick={()=>delTask(t.id,calDay,t.accId)}>✕</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Account health */}
+            <div style={{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,overflow:"hidden"}}>
+              <div style={{padding:"12px 16px",borderBottom:"1px solid #edf2f7",fontSize:14,fontWeight:700,color:"#0fa890",fontFamily:"'Clash Display',sans-serif"}}>Account health</div>
+              <div style={{padding:"0 16px 8px"}}>
+                {data.accounts.length===0?<div style={{padding:"1.5rem",textAlign:"center",color:"#c0cdd8",fontSize:13}}>No accounts yet.</div>
+                :data.accounts.map(a=>{const op=Object.values(a.tasks||{}).flat().filter(t=>!t.done).length,diff=a.renewalDate?Math.ceil((new Date(a.renewalDate)-new Date())/86400000):null;return(
+                  <div key={a.id} onClick={()=>{setSelAcc(a.id);setView("accounts");}} style={{padding:"10px 0",borderBottom:"1px solid #f0f4f8",cursor:"pointer"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <div style={c.ava(a.name)}>{ii(a.name)}</div>
+                      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,fontFamily:"'Clash Display',sans-serif"}}>{a.name}</div><div style={{fontSize:11,color:"#7a9ab5"}}>{a.poc.name} · {a.employees} emp.</div></div>
+                      <div style={{textAlign:"right"}}><span style={c.badge(a.status)}>{SC[a.status]?.label}</span><div style={{fontSize:11,color:"#7a9ab5",marginTop:3}}>{op>0?`${op} open task${op>1?"s":""}`:""}{diff!==null&&diff>=0&&diff<=60?` · ${diff}d to renewal`:""}</div></div>
+                    </div>
+                    <InsurerTags acc={a}/>
+                  </div>
+                );})}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ ACCOUNTS ══ */}
+        {view==="accounts"&&(
+          <div style={c.grid}>
+            <div style={c.sidebar}>
+              <div style={c.sHead}><span style={c.sTitle}>Accounts</span><button style={c.aBtn} onClick={()=>{setForm(flatA(eAcc()));setShowAdd(true);}}>+ Add</button></div>
+              <div style={{padding:"8px 10px"}}><input style={c.srch} placeholder="Search accounts…" value={search} onChange={e=>setSearch(e.target.value)}/></div>
+              {fAccs.length===0&&<div style={{padding:"1rem",textAlign:"center",color:"#c0cdd8",fontSize:13}}>{search?"No results.":"No accounts yet."}</div>}
+              {fAccs.map(a=>(
+                <div key={a.id} style={c.ai(selAcc===a.id)} onClick={()=>setSelAcc(a.id)}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:SC[a.status]?.text,flexShrink:0}}/>
+                  <div style={c.ava(a.name)}>{ii(a.name)}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontFamily:"'Clash Display',sans-serif"}}>{a.name}</div>
+                    <div style={{fontSize:11,color:"#7a9ab5"}}>{a.industry}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {!acc?<div style={{...c.panel,padding:"3rem",textAlign:"center",color:"#c0cdd8"}}>Select an account.</div>:(
+              <div style={c.panel}>
+                <div style={c.pH}>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{...c.ava(acc.name),width:38,height:38,fontSize:13}}>{ii(acc.name)}</div>
+                    <div><div style={{fontSize:15,fontWeight:700,fontFamily:"'Clash Display',sans-serif"}}>{acc.name}</div><div style={{fontSize:12,color:"#7a9ab5"}}>{acc.industry}</div></div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button style={c.aBtn} onClick={()=>{setForm(flatA(acc));setShowEdit(true);}}>Edit</button>
+                    <button style={{...c.aBtn,color:"#e0392e",borderColor:"#e0392e44",background:"#fff0ef"}} onClick={()=>delAcc(acc.id)}>Delete</button>
+                  </div>
+                </div>
+
+                {/* Stats */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,padding:"14px 18px"}}>
+                  {[["Employees",acc.employees.toLocaleString()],["Status",null],["Renewal",acc.renewalDate?new Date(acc.renewalDate).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):"—"],["Days left",acc.renewalDate?Math.max(0,Math.ceil((new Date(acc.renewalDate)-new Date())/86400000))+"d":"—"]].map(([l,v])=>(
+                    <div key={l} style={c.ic}><div style={c.iL}>{l}</div>{l==="Status"?<div style={{marginTop:4}}><span style={c.badge(acc.status)}>{SC[acc.status]?.label}</span></div>:<div style={c.iV}>{v}</div>}</div>
+                  ))}
+                </div>
+
+                {/* Insurance setup card */}
+                {(acc.carrierId||acc.tpaId||acc.hmoId)&&(
+                  <div style={{margin:"0 18px 14px",background:"#f0f6ff",border:"1px solid #c7dcff",borderRadius:12,padding:14}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#4285f4",textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>Insurance Setup</div>
+                    <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+                      {acc.carrierId&&INSURER_BY_ID[acc.carrierId]&&(()=>{const ins=INSURER_BY_ID[acc.carrierId];return(
+                        <div style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1px solid #c7dcff",borderRadius:10,padding:"8px 12px",minWidth:130}}>
+                          <InsurerLogo ins={ins}/>
+                          <div><div style={{fontSize:9,fontWeight:700,color:"#4285f4",textTransform:"uppercase",letterSpacing:0.5}}>Risk Carrier</div><div style={{fontSize:12,fontWeight:700,color:"#0f1c2e"}}>{ins.name}</div>{ins.url&&<a href={ins.url} target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:"#4285f4",textDecoration:"none"}}>Visit website →</a>}</div>
+                        </div>
+                      );})()}
+                      {(acc.tpaIsCarrier?acc.carrierId:acc.tpaId)&&(()=>{const ins=acc.tpaIsCarrier?INSURER_BY_ID[acc.carrierId]:INSURER_BY_ID[acc.tpaId];if(!ins)return null;return(
+                        <div style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1px solid #b2f0df",borderRadius:10,padding:"8px 12px",minWidth:130}}>
+                          <InsurerLogo ins={ins}/>
+                          <div><div style={{fontSize:9,fontWeight:700,color:"#0fa890",textTransform:"uppercase",letterSpacing:0.5}}>TPA{acc.tpaIsCarrier?" (= Carrier)":""}</div><div style={{fontSize:12,fontWeight:700,color:"#0f1c2e"}}>{ins.name}</div>{ins.url&&<a href={ins.url} target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:"#0fa890",textDecoration:"none"}}>Visit website →</a>}</div>
+                        </div>
+                      );})()}
+                      {acc.hmoId&&INSURER_BY_ID[acc.hmoId]&&(()=>{const ins=INSURER_BY_ID[acc.hmoId];return(
+                        <div style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1px solid #e9c7ff",borderRadius:10,padding:"8px 12px",minWidth:130}}>
+                          <InsurerLogo ins={ins}/>
+                          <div><div style={{fontSize:9,fontWeight:700,color:"#9333ea",textTransform:"uppercase",letterSpacing:0.5}}>HMO</div><div style={{fontSize:12,fontWeight:700,color:"#0f1c2e"}}>{ins.name}</div>{ins.url&&<a href={ins.url} target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:"#9333ea",textDecoration:"none"}}>Visit website →</a>}</div>
+                        </div>
+                      );})()}
+                    </div>
+                  </div>
+                )}
+
+                {/* POC */}
+                <div style={{margin:"0 18px 14px",background:"#f7fbff",border:"1px solid #edf2f7",borderRadius:12,padding:16}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                    <div style={{...c.ava(acc.poc.name||"?"),width:44,height:44,fontSize:14}}>{ii(acc.poc.name||"?")}</div>
+                    <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,fontFamily:"'Clash Display',sans-serif"}}>{acc.poc.name||"—"}</div><div style={{fontSize:12,color:"#7a9ab5"}}>{acc.poc.title||"—"}</div></div>
+                    <div style={{display:"flex",gap:6}}>
+                      {acc.poc.email&&<a href={`mailto:${acc.poc.email}`} style={{background:"#e8faf8",border:"1px solid #5dd8c844",color:"#0fa890",borderRadius:8,padding:"5px 11px",fontSize:12,fontWeight:700,textDecoration:"none"}}>✉ Email</a>}
+                      {acc.poc.emailThreadUrl&&<a href={acc.poc.emailThreadUrl} target="_blank" rel="noopener noreferrer" style={{background:"#0a1628",border:"1px solid #162240",color:"#5dd8c8",borderRadius:8,padding:"5px 11px",fontSize:12,fontWeight:700,textDecoration:"none"}}>📬 Inbox</a>}
+                    </div>
+                  </div>
+                  {[["Phone",acc.poc.phone,null],["Email",acc.poc.email,acc.poc.email?`mailto:${acc.poc.email}`:null]].map(([l,v,href])=>(
+                    <div key={l} style={{fontSize:12,color:"#7a9ab5",padding:"6px 0",borderTop:"1px solid #edf2f7",display:"flex",gap:8}}>
+                      <span style={{color:"#c0cdd8",minWidth:42,fontWeight:600}}>{l}</span>
+                      {href?<a href={href} style={{color:"#0fa890",fontWeight:600,textDecoration:"none"}}>{v||"—"}</a>:<span style={{color:"#0f1c2e",fontWeight:500}}>{v||"—"}</span>}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Subsidiaries */}
+                <div style={{margin:"0 18px 14px"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"#7a9ab5",textTransform:"uppercase",letterSpacing:0.8}}>Subsidiaries ({(acc.subsidiaries||[]).length})</span>
+                    <button style={c.aBtn} onClick={()=>setShowSub(true)}>+ Add</button>
+                  </div>
+                  {(acc.subsidiaries||[]).length===0?<div style={{background:"#f7fbff",border:"1px dashed #dde8f0",borderRadius:10,padding:12,textAlign:"center",color:"#c0cdd8",fontSize:12}}>No subsidiaries yet.</div>
+                  :(acc.subsidiaries||[]).map(s=>(
+                    <div key={s.id} style={{background:"#f7fbff",border:"1px solid #edf2f7",borderRadius:10,padding:"10px 14px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{...c.ava(s.name),width:30,height:30,fontSize:10}}>{ii(s.name)}</div>
+                      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{s.name}</div><div style={{fontSize:11,color:"#7a9ab5"}}>{s.employees>0?`${s.employees} emp.`:""}{s.poc?` · ${s.poc}`:""}</div></div>
+                      {s.pocEmail&&<a href={`mailto:${s.pocEmail}`} style={{fontSize:11,color:"#0fa890",fontWeight:700,textDecoration:"none",background:"#e8faf8",padding:"2px 8px",borderRadius:20}}>✉</a>}
+                      <button style={c.del} onClick={()=>delSub(s.id)}>✕</button>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={c.tabs}>
+                  {[["notes","Weekly Notes"],["tasks","Daily Tasks"],["activity","Activity Log"]].map(([t,l])=>(
+                    <button key={t} style={c.tab(tab===t)} onClick={()=>setTab(t)}>{l}</button>
+                  ))}
+                </div>
+
+                {tab==="notes"&&(
+                  <div style={{padding:18}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                      <span style={{fontSize:13,fontWeight:600}}>Week notes</span>
+                      <WeekNav off={nOff} setOff={setNOff} label={nOff===0?"This week":nOff===-1?"Last week":nOff<0?`${Math.abs(nOff)}w ago`:`${nOff}w ahead`}/>
+                    </div>
+                    <NoteInput value={note} onChange={chNote} onSave={saveNote}/>
+                    {(acc.notes[nwk]||[]).length===0?<div style={{padding:"1rem 0",textAlign:"center",color:"#c0cdd8",fontSize:13}}>No notes this week.</div>
+                    :[...(acc.notes[nwk]||[])].reverse().map(n=>(
+                      <div key={n.id} style={{background:"#f7fbff",border:"1px solid #edf2f7",borderRadius:8,padding:12,marginTop:8,position:"relative"}}>
+                        <button style={c.del} onClick={()=>delNote(n.id)}>✕</button>
+                        <div style={{fontSize:13,lineHeight:1.65,color:"#0f1c2e",paddingRight:20}}>{n.text}</div>
+                        <div style={{fontSize:11,color:"#c0cdd8",marginTop:5}}>{new Date(n.ts).toLocaleString("en-GB",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"})}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {tab==="tasks"&&(
+                  <div style={{padding:18}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                      <span style={{fontSize:13,fontWeight:600}}>{fday(dky)}</span>
+                      <WeekNav off={dOff} setOff={setDOff} label={dOff===0?"Today":dOff===1?"Tomorrow":dOff===-1?"Yesterday":dOff<0?`${Math.abs(dOff)}d ago`:`In ${dOff}d`}/>
+                    </div>
+                    <TaskInput value={task} timeValue={taskTime} onChange={chTask} onTimeChange={chTaskTime} onAdd={addTask}/>
+                    {(acc.tasks[dky]||[]).length===0?<div style={{padding:"1rem 0",textAlign:"center",color:"#c0cdd8",fontSize:13}}>No tasks for this day.</div>
+                    :[...(acc.tasks[dky]||[])].sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99")).map(t=>{
+                      const taskKey=`[AM] ${t.text} — ${acc.name}`;
+                      return(
+                        <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid #f0f4f8",opacity:t.done?0.45:1,flexWrap:"wrap"}}>
+                          <input type="checkbox" checked={t.done} onChange={()=>togTask(t.id)} style={{accentColor:"#0fa890",width:15,height:15,cursor:"pointer",flexShrink:0}}/>
+                          {t.time&&<span style={{fontSize:11,color:"#0fa890",fontWeight:700,background:"#e8faf8",padding:"1px 7px",borderRadius:20,whiteSpace:"nowrap"}}>{t.time}</span>}
+                          <span style={{fontSize:13,flex:1,minWidth:60,textDecoration:t.done?"line-through":"none",color:t.done?"#c0cdd8":"#0f1c2e",fontWeight:500}}>{t.text}</span>
+                          <a href={gcalLink(t,dky,acc.name)} target="_blank" rel="noopener noreferrer" style={c.gcalBtn}>📅 GCal</a>
+                          <button style={c.gtaskBtn} onClick={()=>handleGTask(t.text,acc.name)}>
+                            {copiedId===taskKey?"✓ Copied!":"✓ GTask"}
+                          </button>
+                          <button style={c.del} onClick={()=>delTask(t.id)}>✕</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {tab==="activity"&&(
+                  <div style={{padding:18}}>
+                    <div style={{fontSize:13,fontWeight:600,marginBottom:12,color:"#7a9ab5"}}>Activity & task log</div>
+                    {(acc.activity||[]).length===0?<div style={{padding:"1rem 0",textAlign:"center",color:"#c0cdd8",fontSize:13}}>No activity yet.</div>
+                    :(acc.activity||[]).map(a=>(
+                      <div key={a.id} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:"1px solid #f0f4f8",alignItems:"flex-start"}}>
+                        <div style={{width:7,height:7,borderRadius:"50%",background:"#edf2f7",border:"1.5px solid #5dd8c8",marginTop:5,flexShrink:0}}/>
+                        <div style={{flex:1}}><div style={{fontSize:13,color:"#0f1c2e",fontWeight:500}}>{a.msg}</div><div style={{fontSize:11,color:"#c0cdd8",marginTop:2}}>{new Date(a.ts).toLocaleString("en-GB",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"})}</div></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══ INSURERS ══ */}
+        {view==="insurers"&&(
+          <div>
+            {/* Filter bar */}
+            <div style={{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,padding:"14px 18px",marginBottom:14}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <input style={{...c.srch,marginBottom:0,maxWidth:260}} placeholder="Search insurers…" value={insSearch} onChange={e=>setInsSearch(e.target.value)}/>
+                <div style={{display:"flex",gap:6}}>
+                  {[["all","All"],["carrier","Risk Carriers"],["tpa","TPAs"],["hmo","HMOs"]].map(([v,l])=>(
+                    <button key={v} onClick={()=>setInsFilter(v)} style={{background:insFilter===v?"#0a1628":"#f0f4f8",color:insFilter===v?"#5dd8c8":"#7a9ab5",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>{l}</button>
+                  ))}
+                </div>
+                <span style={{fontSize:12,color:"#7a9ab5",marginLeft:"auto"}}>{filteredInsurers.length} insurer{filteredInsurers.length!==1?"s":""}</span>
+              </div>
+            </div>
+
+            {/* Stats row */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+              {[["Risk Carriers",INSURERS.filter(i=>i.types.includes("carrier")).length,"#4285f4"],["TPAs",INSURERS.filter(i=>i.types.includes("tpa")).length,"#0fa890"],["HMOs",INSURERS.filter(i=>i.types.includes("hmo")).length,"#9333ea"]].map(([l,v,col])=>(
+                <div key={l} style={{background:"#fff",border:`1.5px solid ${col}44`,borderRadius:14,padding:"14px 18px"}}>
+                  <div style={{fontSize:22,fontWeight:700,color:col,fontFamily:"'Clash Display',sans-serif"}}>{v}</div>
+                  <div style={{fontSize:11,color:"#7a9ab5",marginTop:2,textTransform:"uppercase",letterSpacing:0.8,fontWeight:600}}>{l}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Insurer grid */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
+              {filteredInsurers.map(ins=>{
+                const linked=accsForInsurer(ins.id);
+                return(
+                  <div key={ins.id} style={{background:"#fff",border:"1px solid #dde8f0",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:10}}>
+                    <div style={{display:"flex",alignItems:"center",gap:12}}>
+                      <InsurerLogo ins={ins}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:14,fontWeight:700,fontFamily:"'Clash Display',sans-serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ins.name}</div>
+                        <div style={{display:"flex",gap:4,marginTop:3,flexWrap:"wrap"}}>
+                          {ins.types.map(t=><span key={t} style={c.typeTag(t)}>{t==="carrier"?"Risk Carrier":t==="tpa"?"TPA":"HMO"}</span>)}
+                        </div>
+                      </div>
+                      {ins.url&&<a href={ins.url} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:"#4285f4",fontWeight:700,textDecoration:"none",background:"#e8f0fe",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap",flexShrink:0}}>Website →</a>}
+                    </div>
+                    {linked.length>0&&(
+                      <div>
+                        <div style={{fontSize:10,fontWeight:700,color:"#7a9ab5",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Linked accounts ({linked.length})</div>
+                        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                          {linked.map(a=>(
+                            <div key={a.id} onClick={()=>{setSelAcc(a.id);setView("accounts");}} style={{display:"flex",alignItems:"center",gap:8,background:"#f7fbff",borderRadius:8,padding:"6px 10px",cursor:"pointer",border:"1px solid #edf2f7"}}>
+                              <div style={{...c.ava(a.name),width:22,height:22,fontSize:8}}>{ii(a.name)}</div>
+                              <span style={{fontSize:12,fontWeight:600,color:"#0f1c2e"}}>{a.name}</span>
+                              <span style={{...c.badge(a.status),fontSize:9,padding:"1px 7px",marginLeft:"auto"}}>{SC[a.status]?.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {linked.length===0&&<div style={{fontSize:11,color:"#c0cdd8",textAlign:"center",padding:"6px 0"}}>No accounts linked yet</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      {showAdd&&<AccModal title="Add new account" d={form} ch={chForm} onSave={addAcc} onClose={()=>setShowAdd(false)}/>}
+      {showEdit&&<AccModal title={`Edit · ${acc?.name}`} d={form} ch={chForm} onSave={updAcc} onClose={()=>setShowEdit(false)}/>}
+      {showCalAdd&&<CalAddModal day={calDay} accounts={data.accounts} ct={calTask} ch={chCal} onSave={addCalTask} onClose={()=>setShowCalAdd(false)}/>}
+      {showSub&&(
+        <div style={c.modal} onClick={e=>e.target===e.currentTarget&&setShowSub(false)}>
+          <div style={{...c.mBox,width:400}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:4,fontFamily:"'Clash Display',sans-serif"}}>Add Subsidiary</div>
+            <div style={{fontSize:12,color:"#7a9ab5",marginBottom:16}}>Under {acc?.name}</div>
+            {[["Subsidiary name","name","text"],["Employees","employees","number"],["POC name","poc","text"],["POC email","pocEmail","email"],["POC phone","pocPhone","text"]].map(([lb,k,t])=>(
+              <div key={k}><label style={c.fl}>{lb}</label><input style={c.fi} type={t} value={subForm[k]} onChange={e=>setSubForm(f=>({...f,[k]:e.target.value}))}/></div>
+            ))}
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+              <button style={c.cBtn} onClick={()=>setShowSub(false)}>Cancel</button>
+              <button style={c.sv} onClick={addSub}>Add</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Dashboard/>);
+</script>
+</body>
+</html>
